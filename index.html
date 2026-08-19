@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>골프 라운딩 대시보드</title>
+
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png" type="image/png">
+<meta name="theme-color" content="#15803d">
+
+<!-- iOS는 manifest.json의 display/아이콘 설정을 대부분 무시하고 아래 태그들을 직접 읽는다 -->
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="골프기록">
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --grid:           #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6; /* score */
+    --series-2:       #eb6834; /* par */
+    --good:           #006300;
+    --card-shadow:    0 1px 2px rgba(11,11,11,0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --grid:           #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-2:       #d95926;
+      --good:           #0ca30c;
+      --card-shadow:    none;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --grid:           #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-1:       #3987e5;
+    --series-2:       #d95926;
+    --good:           #0ca30c;
+    --card-shadow:    none;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  body { padding: 24px; }
+
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  header { margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 20px; font-weight: 600; margin: 0; }
+  header p { margin: 4px 0 0; color: var(--text-secondary); font-size: 13px; }
+  #theme-toggle {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+    border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+  }
+  #theme-toggle:hover { color: var(--text-primary); }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    padding: 18px;
+  }
+  .card h2 { font-size: 14px; font-weight: 600; margin: 0 0 14px; color: var(--text-primary); }
+
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+  /* form */
+  form { display: flex; flex-direction: column; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--text-secondary); }
+  .field input, .field select, .field textarea {
+    font: inherit; font-size: 13px;
+    background: var(--page);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    width: 100%;
+  }
+  .field textarea { resize: vertical; min-height: 56px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .submit-btn {
+    margin-top: 4px;
+    background: var(--series-1);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .submit-btn:hover { filter: brightness(1.08); }
+  .submit-btn:disabled { opacity: 0.6; cursor: default; }
+  #form-error { color: var(--series-2); font-size: 12px; min-height: 14px; }
+
+  .left-col, .right-col { display: flex; flex-direction: column; gap: 16px; }
+
+  #cfg-status { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+  #cfg-status.ok { color: var(--good); }
+  #cfg-status.err { color: var(--series-2); }
+
+  /* stat tiles */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 700px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat-tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--card-shadow); }
+  .stat-tile .label { font-size: 12px; color: var(--text-secondary); }
+  .stat-tile .value { font-size: 26px; font-weight: 600; margin-top: 4px; }
+  .stat-tile .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  /* chart */
+  .legend { display: flex; gap: 16px; margin-bottom: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .chart-empty { color: var(--text-muted); font-size: 13px; padding: 40px 0; text-align: center; }
+  #chart-tooltip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity 0.08s;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 12px; color: var(--text-primary); box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    white-space: nowrap; z-index: 10;
+  }
+  #chart-tooltip .t-date { color: var(--text-secondary); margin-bottom: 2px; }
+  .chart-holder { position: relative; }
+
+  /* table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
+  thead th {
+    text-align: left; font-weight: 600; color: var(--text-secondary);
+    font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--baseline);
+    white-space: nowrap;
+  }
+  tbody td { padding: 9px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  tbody tr:hover td { background: color-mix(in srgb, var(--series-1) 6%, transparent); }
+  td.num, th.num { font-variant-numeric: tabular-nums; }
+  .to-par-pos { color: var(--series-2); }
+  .to-par-neg { color: var(--good); }
+  .to-par-zero { color: var(--text-secondary); }
+  .memo-cell { color: var(--text-secondary); max-width: 220px; white-space: pre-wrap; }
+  .del-btn {
+    background: none; border: 1px solid var(--border); color: var(--text-muted);
+    border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer;
+  }
+  .del-btn:hover { color: var(--series-2); border-color: var(--series-2); }
+  .empty-row td { text-align: center; color: var(--text-muted); padding: 28px 0; }
+  .thumb-link { display: inline-block; }
+  .thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); display: block; }
+
+  /* companions */
+  .companion-row { display: flex; gap: 6px; margin-bottom: 6px; }
+  .companion-row .comp-name { flex: 2; }
+  .companion-row .comp-score { flex: 1; }
+  .comp-remove {
+    flex: 0 0 auto; width: 32px;
+    background: none; border: 1px solid var(--border); color: var(--text-muted);
+    border-radius: 6px; cursor: pointer; font-size: 14px;
+  }
+  .comp-remove:hover { color: var(--series-2); border-color: var(--series-2); }
+  .add-companion-btn {
+    align-self: flex-start;
+    background: none; border: 1px dashed var(--border); color: var(--text-secondary);
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+  }
+  .add-companion-btn:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+
+  /* photo upload */
+  .photo-preview-wrap { display: none; align-items: center; gap: 10px; margin-top: 8px; }
+  .photo-preview-wrap img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+  .photo-status { font-size: 12px; color: var(--text-muted); margin-top: 4px; min-height: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>골프 라운딩 대시보드</h1>
+      <p>라운딩 기록은 연결된 Google 시트에 저장됩니다. 같은 URL과 토큰을 입력하면 PC·폰에서 같은 기록을 볼 수 있어요.</p>
+    </div>
+    <button id="theme-toggle" type="button">다크 모드</button>
+  </header>
+
+  <div class="layout">
+    <div class="left-col">
+      <div class="card">
+        <h2>Google Sheets 연결</h2>
+        <div class="field">
+          <label for="cfg-url">Apps Script 웹앱 URL</label>
+          <input type="text" id="cfg-url" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+        <div class="field">
+          <label for="cfg-token">토큰</label>
+          <input type="text" id="cfg-token" placeholder="Apps Script 코드에 설정한 토큰">
+        </div>
+        <button type="button" id="cfg-save" class="submit-btn">연결 저장</button>
+        <div id="cfg-status">아직 연결되지 않았어요.</div>
+      </div>
+
+      <div class="card">
+      <h2>새 라운딩 기록</h2>
+      <form id="round-form">
+        <div class="field">
+          <label for="f-date">날짜</label>
+          <input type="date" id="f-date" required>
+        </div>
+        <div class="field">
+          <label for="f-course">골프장 이름</label>
+          <input type="text" id="f-course" placeholder="예: 남서울CC" required>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label for="f-score">스코어(타수)</label>
+            <input type="number" id="f-score" min="18" max="200" placeholder="예: 88" required>
+          </div>
+          <div class="field">
+            <label for="f-par">파(Par)</label>
+            <input type="number" id="f-par" min="18" max="90" placeholder="예: 72" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-weather">날씨</label>
+          <select id="f-weather">
+            <option value="">선택 안 함</option>
+            <option value="맑음">맑음</option>
+            <option value="흐림">흐림</option>
+            <option value="비">비</option>
+            <option value="바람">바람</option>
+            <option value="더위">더위</option>
+            <option value="추위">추위</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>동반자</label>
+          <div id="companions-rows"></div>
+          <button type="button" id="add-companion" class="add-companion-btn">+ 동반자 추가</button>
+        </div>
+        <div class="field">
+          <label for="f-memo">메모</label>
+          <textarea id="f-memo" placeholder="특이사항, 코스 컨디션 등"></textarea>
+        </div>
+        <div class="field">
+          <label for="f-photo">스코어카드 사진</label>
+          <input type="file" id="f-photo" accept="image/*">
+          <div class="photo-preview-wrap" id="photo-preview-wrap">
+            <img id="photo-preview" alt="미리보기">
+            <button type="button" id="photo-remove" class="del-btn">사진 제거</button>
+          </div>
+          <div class="photo-status" id="photo-status"></div>
+        </div>
+        <div id="form-error"></div>
+        <button type="submit" class="submit-btn">기록 추가</button>
+      </form>
+      </div>
+    </div>
+
+    <div class="right-col">
+      <div class="stats" id="stats"></div>
+
+      <div class="card">
+        <h2>스코어 추이</h2>
+        <div class="legend" id="chart-legend"></div>
+        <div class="chart-holder">
+          <div id="chart-target"></div>
+          <div id="chart-tooltip"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2>라운딩 기록</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>날짜</th>
+            <th>골프장</th>
+            <th class="num">스코어</th>
+            <th class="num">파</th>
+            <th class="num">오버파</th>
+            <th>날씨</th>
+            <th>동반자</th>
+            <th>메모</th>
+            <th>사진</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var API_CONFIG_KEY = "golfApiConfig";
+  var THEME_KEY = "golfDashboardTheme";
+
+  /* ---------- theme ---------- */
+  function applyTheme(theme) {
+    if (theme === "dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+      themeToggle.textContent = "라이트 모드";
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      themeToggle.textContent = "다크 모드";
+    }
+  }
+  var themeToggle = document.getElementById("theme-toggle");
+  var savedTheme = localStorage.getItem(THEME_KEY) ||
+    (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  applyTheme(savedTheme);
+  themeToggle.addEventListener("click", function () {
+    var current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+    var next = current === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  });
+
+  /* ---------- Google Sheets API config ---------- */
+  function loadApiConfig() {
+    try {
+      var parsed = JSON.parse(localStorage.getItem(API_CONFIG_KEY));
+      return (parsed && parsed.url && parsed.token) ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function saveApiConfig(cfg) { localStorage.setItem(API_CONFIG_KEY, JSON.stringify(cfg)); }
+  function cfgReady() { return !!apiConfig; }
+
+  var apiConfig = loadApiConfig();
+  var rounds = [];
+
+  var cfgUrlInput = document.getElementById("cfg-url");
+  var cfgTokenInput = document.getElementById("cfg-token");
+  var cfgStatus = document.getElementById("cfg-status");
+  if (apiConfig) {
+    cfgUrlInput.value = apiConfig.url;
+    cfgTokenInput.value = apiConfig.token;
+  }
+
+  function setStatus(msg, kind) {
+    cfgStatus.textContent = msg;
+    cfgStatus.className = kind || "";
+  }
+  function nowTime() {
+    var d = new Date();
+    return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+
+  document.getElementById("cfg-save").addEventListener("click", function () {
+    var url = cfgUrlInput.value.trim();
+    var token = cfgTokenInput.value.trim();
+    if (!url || !token) {
+      setStatus("URL과 토큰을 모두 입력해주세요.", "err");
+      return;
+    }
+    apiConfig = { url: url, token: token };
+    saveApiConfig(apiConfig);
+    fetchRounds();
+  });
+
+  /* ---------- API calls ---------- */
+  // Apps Script 웹앱은 가끔(특히 사진 업로드처럼 처리 시간이 걸리는 요청에서) JSON 대신
+  // HTML 오류 페이지를 반환하는 경우가 있어, res.json()으로 바로 파싱하면 사용자에게
+  // "Unexpected token '<'..." 같은 알아보기 힘든 오류가 노출된다. 먼저 텍스트로 받아
+  // 직접 JSON.parse를 시도하고, 실패하면 구분 가능한 에러(BAD_RESPONSE)로 변환한다.
+  function parseJsonSafe(text) {
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      var err = new Error("bad_response");
+      err.code = "BAD_RESPONSE";
+      throw err;
+    }
+  }
+  function apiGet(action) {
+    var url = apiConfig.url + "?token=" + encodeURIComponent(apiConfig.token) + "&action=" + encodeURIComponent(action);
+    return fetch(url).then(function (res) { return res.text(); }).then(parseJsonSafe);
+  }
+  function apiPost(payload) {
+    var body = Object.assign({ token: apiConfig.token }, payload);
+    return fetch(apiConfig.url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body)
+    }).then(function (res) { return res.text(); }).then(parseJsonSafe);
+  }
+
+  function fetchRounds() {
+    if (!cfgReady()) {
+      rounds = [];
+      render();
+      return Promise.resolve();
+    }
+    setStatus("불러오는 중...");
+    return apiGet("list").then(function (data) {
+      if (!data.ok) throw new Error(data.error || "unknown_error");
+      rounds = data.rows.map(function (r) {
+        return {
+          id: r.row,
+          date: r.date, course: r.course,
+          score: Number(r.score), par: Number(r.par),
+          weather: r.weather || "", companions: r.companions || "", memo: r.memo || "",
+          photo: r.photo || ""
+        };
+      });
+      setStatus("연결됨 · 마지막 동기화 " + nowTime(), "ok");
+      render();
+    }).catch(function (err) {
+      var msg = err.code === "BAD_RESPONSE" ? "서버 응답을 읽지 못했어요. 잠시 후 다시 시도해주세요." : err.message;
+      setStatus("불러오기 실패: " + msg, "err");
+      render();
+    });
+  }
+
+  function byDateAsc(a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }
+  function byDateDesc(a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; }
+
+  /* ---------- companions (name:score list encoded into one sheet cell) ---------- */
+  function encodeCompanions(list) {
+    return list.map(function (c) {
+      var name = (c.name || "").trim();
+      if (!name) return null;
+      var score = (c.score || "").toString().trim();
+      return score ? (name + ":" + score) : name;
+    }).filter(Boolean).join("; ");
+  }
+  function decodeCompanions(str) {
+    if (!str) return [];
+    return str.split(";").map(function (s) { return s.trim(); }).filter(Boolean).map(function (s) {
+      var idx = s.lastIndexOf(":");
+      if (idx === -1) return { name: s, score: "" };
+      return { name: s.slice(0, idx).trim(), score: s.slice(idx + 1).trim() };
+    });
+  }
+  function formatCompanions(str) {
+    var list = decodeCompanions(str);
+    if (!list.length) return "-";
+    return list.map(function (c) {
+      return escapeHtml(c.name) + (c.score ? " " + escapeHtml(c.score) : "");
+    }).join(" · ");
+  }
+
+  /* ---------- companion row UI ---------- */
+  var companionsRowsEl = document.getElementById("companions-rows");
+  function addCompanionRow() {
+    var row = document.createElement("div");
+    row.className = "companion-row";
+    row.innerHTML =
+      '<input type="text" class="comp-name" placeholder="이름">' +
+      '<input type="number" class="comp-score" placeholder="스코어" min="18" max="200">' +
+      '<button type="button" class="comp-remove">×</button>';
+    row.querySelector(".comp-remove").addEventListener("click", function () { row.remove(); });
+    companionsRowsEl.appendChild(row);
+  }
+  document.getElementById("add-companion").addEventListener("click", addCompanionRow);
+  function collectCompanions() {
+    var list = [];
+    Array.prototype.forEach.call(companionsRowsEl.querySelectorAll(".companion-row"), function (row) {
+      var name = row.querySelector(".comp-name").value.trim();
+      var score = row.querySelector(".comp-score").value.trim();
+      if (name) list.push({ name: name, score: score });
+    });
+    return list;
+  }
+  function resetCompanionRows() {
+    companionsRowsEl.innerHTML = "";
+    addCompanionRow();
+  }
+  addCompanionRow();
+
+  /* ---------- photo upload ---------- */
+  var pendingPhoto = null; // { dataUrl, mimeType }
+  var photoInput = document.getElementById("f-photo");
+  var photoPreviewWrap = document.getElementById("photo-preview-wrap");
+  var photoPreviewImg = document.getElementById("photo-preview");
+  var photoStatus = document.getElementById("photo-status");
+
+  // Apps Script doPost는 사진(Drive 업로드)이 딸린 요청일수록 처리 시간이 늘어나고,
+  // 그만큼 응답이 HTML 오류 페이지로 바뀌는 현상이 잦아진다. 업로드 전에 이미지를
+  // 최대한 작게 만들어 요청/처리 시간을 줄이는 것이 가장 효과적인 예방책이다.
+  var PHOTO_MAX_DIM = 1280;
+  var PHOTO_MAX_BASE64_LEN = 1400000; // base64 약 1.4MB 이하로 제한 (원본 약 1MB 상당)
+
+  function resizeImage(file, maxDim, quality) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var img = new Image();
+        img.onload = function () {
+          var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          var cw = Math.max(1, Math.round(img.width * scale));
+          var ch = Math.max(1, Math.round(img.height * scale));
+          var canvas = document.createElement("canvas");
+          canvas.width = cw;
+          canvas.height = ch;
+          canvas.getContext("2d").drawImage(img, 0, 0, cw, ch);
+
+          var q = quality || 0.75;
+          var dataUrl = canvas.toDataURL("image/jpeg", q);
+          // 그래도 용량이 크면 화질을 더 낮춰가며 재압축
+          while (dataUrl.length > PHOTO_MAX_BASE64_LEN && q > 0.35) {
+            q -= 0.15;
+            dataUrl = canvas.toDataURL("image/jpeg", q);
+          }
+          resolve({ dataUrl: dataUrl, mimeType: "image/jpeg" });
+        };
+        img.onerror = function () { reject(new Error("image_decode_failed")); };
+        img.src = e.target.result;
+      };
+      reader.onerror = function () { reject(new Error("file_read_failed")); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  photoInput.addEventListener("change", function () {
+    var file = photoInput.files && photoInput.files[0];
+    if (!file) return;
+    photoStatus.textContent = "사진 처리 중...";
+    resizeImage(file, PHOTO_MAX_DIM, 0.75).then(function (result) {
+      pendingPhoto = result;
+      photoPreviewImg.src = result.dataUrl;
+      photoPreviewWrap.style.display = "flex";
+      photoStatus.textContent = "업로드 시 몇 초 정도 걸릴 수 있어요.";
+    }).catch(function () {
+      pendingPhoto = null;
+      photoStatus.textContent = "사진을 처리하지 못했어요. 다른 파일을 시도해주세요.";
+    });
+  });
+  document.getElementById("photo-remove").addEventListener("click", resetPhotoInput);
+  function resetPhotoInput() {
+    pendingPhoto = null;
+    photoInput.value = "";
+    photoPreviewWrap.style.display = "none";
+    photoStatus.textContent = "";
+  }
+
+  function driveThumbUrl(url) {
+    var m = /\/d\/([a-zA-Z0-9_-]+)/.exec(url || "");
+    return m ? ("https://drive.google.com/thumbnail?id=" + m[1] + "&sz=w160") : null;
+  }
+
+  /* ---------- form ---------- */
+  var form = document.getElementById("round-form");
+  var errorBox = document.getElementById("form-error");
+  var submitBtn = form.querySelector(".submit-btn");
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    errorBox.textContent = "";
+
+    if (!cfgReady()) {
+      errorBox.textContent = "먼저 위에서 Google Sheets 연결을 저장해주세요.";
+      return;
+    }
+
+    var date = document.getElementById("f-date").value;
+    var course = document.getElementById("f-course").value.trim();
+    var score = parseInt(document.getElementById("f-score").value, 10);
+    var par = parseInt(document.getElementById("f-par").value, 10);
+    var weather = document.getElementById("f-weather").value;
+    var companions = encodeCompanions(collectCompanions());
+    var memo = document.getElementById("f-memo").value.trim();
+
+    if (!date || !course || !score || !par) {
+      errorBox.textContent = "날짜, 골프장, 스코어, 파는 필수 입력 항목이에요.";
+      return;
+    }
+    if (score < 18 || score > 200 || par < 18 || par > 90) {
+      errorBox.textContent = "스코어 또는 파 값이 올바르지 않아요.";
+      return;
+    }
+
+    var payload = {
+      action: "add",
+      record: { date: date, course: course, score: score, par: par, weather: weather, companions: companions, memo: memo }
+    };
+    if (pendingPhoto) {
+      var safeName = (course || "scorecard").replace(/[^a-zA-Z0-9가-힣_-]/g, "_");
+      payload.photo = {
+        data: pendingPhoto.dataUrl.split(",")[1],
+        mimeType: pendingPhoto.mimeType,
+        filename: safeName + "_" + date + ".jpg"
+      };
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = pendingPhoto ? "업로드 중..." : "저장 중...";
+    apiPost(payload).then(function (res) {
+      if (!res.ok) throw new Error(res.error || "unknown_error");
+      form.reset();
+      resetCompanionRows();
+      resetPhotoInput();
+      return fetchRounds();
+    }).catch(function (err) {
+      if (err.code === "BAD_RESPONSE") {
+        // Apps Script 실행 자체는 성공했는데 응답만 깨져서 왔을 가능성이 있다.
+        // 같은 요청을 다시 보내면 행이 중복 저장될 수 있으므로 재요청 대신
+        // 목록을 다시 불러와 실제로 저장됐는지 확인시켜준다.
+        errorBox.textContent = "서버 응답을 읽지 못했어요. 실제 저장 여부를 확인하기 위해 목록을 새로고침할게요...";
+        form.reset();
+        resetCompanionRows();
+        resetPhotoInput();
+        fetchRounds().then(function () {
+          errorBox.textContent = "목록을 새로고침했어요. 방금 입력한 기록이 보이면 정상 저장된 거예요. 안 보이면 사진을 좀 더 작게 줄이거나 다시 시도해주세요.";
+        });
+      } else {
+        errorBox.textContent = "저장 실패: " + err.message;
+      }
+    }).finally(function () {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "기록 추가";
+    });
+  });
+
+  /* ---------- delete ---------- */
+  function deleteRound(id) {
+    var rowId = parseInt(id, 10);
+    var target = rounds.find(function (r) { return r.id === rowId; });
+    if (!target) return;
+    var label = target.date + " " + target.course;
+    if (!window.confirm(label + " 기록을 삭제할까요? (Google 시트에서도 삭제됩니다)")) return;
+    apiPost({ action: "delete", row: rowId }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || "unknown_error");
+      return fetchRounds();
+    }).catch(function (err) {
+      if (err.code === "BAD_RESPONSE") {
+        window.alert("서버 응답을 읽지 못했어요. 목록을 새로고침해서 확인할게요.");
+        fetchRounds();
+      } else {
+        window.alert("삭제 실패: " + err.message);
+      }
+    });
+  }
+
+  /* ---------- stats ---------- */
+  function computeStats() {
+    if (rounds.length === 0) return null;
+    var scores = rounds.map(function (r) { return r.score; });
+    var toPars = rounds.map(function (r) { return r.score - r.par; });
+    var avgScore = scores.reduce(function (a, b) { return a + b; }, 0) / scores.length;
+    var avgToPar = toPars.reduce(function (a, b) { return a + b; }, 0) / toPars.length;
+    var bestIdx = 0;
+    toPars.forEach(function (v, i) { if (v < toPars[bestIdx]) bestIdx = i; });
+    var best = rounds[bestIdx];
+    return {
+      count: rounds.length,
+      avgScore: avgScore,
+      avgToPar: avgToPar,
+      best: best
+    };
+  }
+
+  function fmtToPar(v) {
+    var r = Math.round(v);
+    if (r > 0) return "+" + r;
+    if (r < 0) return String(r);
+    return "E";
+  }
+  function toParClass(v) {
+    if (v > 0) return "to-par-pos";
+    if (v < 0) return "to-par-neg";
+    return "to-par-zero";
+  }
+
+  function renderStats() {
+    var statsEl = document.getElementById("stats");
+    var s = computeStats();
+    if (!s) {
+      statsEl.innerHTML =
+        '<div class="stat-tile"><div class="label">총 라운딩 수</div><div class="value">0</div></div>' +
+        '<div class="stat-tile"><div class="label">평균 스코어</div><div class="value">–</div></div>' +
+        '<div class="stat-tile"><div class="label">베스트 스코어</div><div class="value">–</div></div>' +
+        '<div class="stat-tile"><div class="label">평균 오버파</div><div class="value">–</div></div>';
+      return;
+    }
+    statsEl.innerHTML =
+      '<div class="stat-tile"><div class="label">총 라운딩 수</div><div class="value">' + s.count + '</div></div>' +
+      '<div class="stat-tile"><div class="label">평균 스코어</div><div class="value">' + s.avgScore.toFixed(1) + '</div></div>' +
+      '<div class="stat-tile"><div class="label">베스트 스코어</div><div class="value">' + s.best.score + '</div>' +
+        '<div class="sub">' + s.best.date + ' · ' + escapeHtml(s.best.course) + '</div></div>' +
+      '<div class="stat-tile"><div class="label">평균 오버파</div><div class="value ' + toParClass(s.avgToPar) + '">' + fmtToPar(s.avgToPar) + '</div></div>';
+  }
+
+  /* ---------- table ---------- */
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function renderTable() {
+    var body = document.getElementById("table-body");
+    if (rounds.length === 0) {
+      var msg = cfgReady()
+        ? "아직 기록된 라운딩이 없어요. 왼쪽 폼에서 첫 기록을 추가해보세요."
+        : "위에서 Google Sheets 연결을 저장하면 기록이 표시돼요.";
+      body.innerHTML = '<tr class="empty-row"><td colspan="10">' + msg + '</td></tr>';
+      return;
+    }
+    var sorted = rounds.slice().sort(byDateDesc);
+    body.innerHTML = sorted.map(function (r) {
+      var toPar = r.score - r.par;
+      var photoCell = "-";
+      if (r.photo) {
+        var thumb = driveThumbUrl(r.photo);
+        photoCell = '<a class="thumb-link" href="' + escapeHtml(r.photo) + '" target="_blank" rel="noopener">' +
+          (thumb ? '<img class="thumb" src="' + escapeHtml(thumb) + '" alt="스코어카드 사진">' : "사진 보기") +
+          "</a>";
+      }
+      return "<tr>" +
+        "<td>" + escapeHtml(r.date) + "</td>" +
+        "<td>" + escapeHtml(r.course) + "</td>" +
+        "<td class=\"num\">" + r.score + "</td>" +
+        "<td class=\"num\">" + r.par + "</td>" +
+        "<td class=\"num " + toParClass(toPar) + "\">" + fmtToPar(toPar) + "</td>" +
+        "<td>" + escapeHtml(r.weather || "-") + "</td>" +
+        "<td>" + formatCompanions(r.companions) + "</td>" +
+        "<td class=\"memo-cell\">" + escapeHtml(r.memo || "-") + "</td>" +
+        "<td>" + photoCell + "</td>" +
+        "<td><button class=\"del-btn\" data-id=\"" + r.id + "\">삭제</button></td>" +
+        "</tr>";
+    }).join("");
+
+    Array.prototype.forEach.call(body.querySelectorAll(".del-btn"), function (btn) {
+      btn.addEventListener("click", function () { deleteRound(btn.getAttribute("data-id")); });
+    });
+  }
+
+  /* ---------- chart ---------- */
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  var legendEl = document.getElementById("chart-legend");
+  var chartTarget = document.getElementById("chart-target");
+  var tooltip = document.getElementById("chart-tooltip");
+
+  function renderLegend() {
+    legendEl.innerHTML =
+      '<div class="legend-item"><span class="legend-swatch" style="background:var(--series-1)"></span>스코어</div>' +
+      '<div class="legend-item"><span class="legend-swatch" style="background:var(--series-2)"></span>파</div>';
+  }
+
+  function renderChart() {
+    var data = rounds.slice().sort(byDateAsc);
+    chartTarget.innerHTML = "";
+    tooltip.style.opacity = 0;
+
+    if (data.length < 2) {
+      var msg = cfgReady()
+        ? "라운딩을 2개 이상 기록하면 추이 그래프가 표시돼요."
+        : "Google Sheets 연결 후 기록을 추가하면 그래프가 표시돼요.";
+      chartTarget.innerHTML = '<div class="chart-empty">' + msg + '</div>';
+      return;
+    }
+
+    var width = Math.max(chartTarget.clientWidth || 640, 320);
+    var height = 320;
+    var padL = 44, padR = 16, padT = 16, padB = 34;
+    var plotW = width - padL - padR;
+    var plotH = height - padT - padB;
+
+    var allVals = [];
+    data.forEach(function (r) { allVals.push(r.score, r.par); });
+    var rawMin = Math.min.apply(null, allVals);
+    var rawMax = Math.max.apply(null, allVals);
+    var yMin = Math.floor((rawMin - 3) / 5) * 5;
+    var yMax = Math.ceil((rawMax + 3) / 5) * 5;
+    if (yMax === yMin) yMax = yMin + 5;
+
+    function xPos(i) { return padL + (data.length === 1 ? plotW / 2 : (i * plotW) / (data.length - 1)); }
+    function yPos(v) { return padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH; }
+
+    var svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    svg.setAttribute("width", "100%");
+    svg.setAttribute("height", height);
+    svg.style.display = "block";
+    svg.style.overflow = "visible";
+
+    var cs = getComputedStyle(document.documentElement);
+    var col = {
+      grid: cs.getPropertyValue("--grid").trim(),
+      baseline: cs.getPropertyValue("--baseline").trim(),
+      muted: cs.getPropertyValue("--text-muted").trim(),
+      s1: cs.getPropertyValue("--series-1").trim(),
+      s2: cs.getPropertyValue("--series-2").trim(),
+      surface: cs.getPropertyValue("--surface-1").trim()
+    };
+
+    /* gridlines + y ticks */
+    var step = (yMax - yMin) / 4;
+    for (var g = 0; g <= 4; g++) {
+      var v = yMax - g * step;
+      var y = yPos(v);
+      var line = document.createElementNS(SVG_NS, "line");
+      line.setAttribute("x1", padL); line.setAttribute("x2", width - padR);
+      line.setAttribute("y1", y); line.setAttribute("y2", y);
+      line.setAttribute("stroke", col.grid);
+      line.setAttribute("stroke-width", "1");
+      svg.appendChild(line);
+
+      var label = document.createElementNS(SVG_NS, "text");
+      label.setAttribute("x", padL - 8);
+      label.setAttribute("y", y + 4);
+      label.setAttribute("text-anchor", "end");
+      label.setAttribute("font-size", "11");
+      label.setAttribute("fill", col.muted);
+      label.textContent = Math.round(v);
+      svg.appendChild(label);
+    }
+
+    /* baseline */
+    var base = document.createElementNS(SVG_NS, "line");
+    base.setAttribute("x1", padL); base.setAttribute("x2", width - padR);
+    base.setAttribute("y1", padT + plotH); base.setAttribute("y2", padT + plotH);
+    base.setAttribute("stroke", col.baseline);
+    base.setAttribute("stroke-width", "1");
+    svg.appendChild(base);
+
+    /* x labels: sparse to avoid crowding */
+    var maxLabels = Math.max(2, Math.floor(plotW / 70));
+    var labelEvery = Math.max(1, Math.ceil(data.length / maxLabels));
+    data.forEach(function (r, i) {
+      if (i % labelEvery !== 0 && i !== data.length - 1) return;
+      var t = document.createElementNS(SVG_NS, "text");
+      t.setAttribute("x", xPos(i));
+      t.setAttribute("y", padT + plotH + 20);
+      t.setAttribute("text-anchor", "middle");
+      t.setAttribute("font-size", "11");
+      t.setAttribute("fill", col.muted);
+      t.textContent = r.date.slice(5).replace("-", "/");
+      svg.appendChild(t);
+    });
+
+    function drawLine(key, color) {
+      var d = data.map(function (r, i) {
+        return (i === 0 ? "M" : "L") + xPos(i).toFixed(1) + "," + yPos(r[key]).toFixed(1);
+      }).join(" ");
+      var path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", d);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", color);
+      path.setAttribute("stroke-width", "2");
+      path.setAttribute("stroke-linejoin", "round");
+      path.setAttribute("stroke-linecap", "round");
+      svg.appendChild(path);
+
+      data.forEach(function (r, i) {
+        var dot = document.createElementNS(SVG_NS, "circle");
+        dot.setAttribute("cx", xPos(i));
+        dot.setAttribute("cy", yPos(r[key]));
+        dot.setAttribute("r", 4);
+        dot.setAttribute("fill", color);
+        dot.setAttribute("stroke", col.surface);
+        dot.setAttribute("stroke-width", "2");
+        svg.appendChild(dot);
+      });
+    }
+
+    drawLine("par", col.s2);
+    drawLine("score", col.s1);
+
+    /* end labels */
+    var last = data[data.length - 1];
+    var endLabel = document.createElementNS(SVG_NS, "text");
+    endLabel.setAttribute("x", xPos(data.length - 1) + 8);
+    endLabel.setAttribute("y", yPos(last.score) + 4);
+    endLabel.setAttribute("font-size", "12");
+    endLabel.setAttribute("font-weight", "600");
+    endLabel.setAttribute("fill", cs.getPropertyValue("--text-primary").trim());
+    endLabel.textContent = last.score;
+    svg.appendChild(endLabel);
+
+    /* hover hit areas + crosshair */
+    var crosshair = document.createElementNS(SVG_NS, "line");
+    crosshair.setAttribute("y1", padT); crosshair.setAttribute("y2", padT + plotH);
+    crosshair.setAttribute("stroke", col.baseline);
+    crosshair.setAttribute("stroke-width", "1");
+    crosshair.setAttribute("opacity", "0");
+    svg.appendChild(crosshair);
+
+    data.forEach(function (r, i) {
+      var hit = document.createElementNS(SVG_NS, "rect");
+      var slotW = data.length > 1 ? plotW / (data.length - 1) : plotW;
+      hit.setAttribute("x", xPos(i) - slotW / 2);
+      hit.setAttribute("y", padT);
+      hit.setAttribute("width", slotW);
+      hit.setAttribute("height", plotH);
+      hit.setAttribute("fill", "transparent");
+      hit.style.cursor = "pointer";
+
+      hit.addEventListener("mouseenter", function () {
+        crosshair.setAttribute("x1", xPos(i));
+        crosshair.setAttribute("x2", xPos(i));
+        crosshair.setAttribute("opacity", "1");
+      });
+      hit.addEventListener("mousemove", function (evt) {
+        var rectBounds = chartTarget.getBoundingClientRect();
+        var toPar = r.score - r.par;
+        tooltip.innerHTML =
+          '<div class="t-date">' + r.date + '</div>' +
+          '<div>' + escapeHtml(r.course) + '</div>' +
+          '<div>스코어 <b>' + r.score + '</b> · 파 ' + r.par + ' · <span class="' + toParClass(toPar) + '">' + fmtToPar(toPar) + '</span></div>';
+        var left = evt.clientX - rectBounds.left + 14;
+        var top = evt.clientY - rectBounds.top - 10;
+        if (left + 180 > rectBounds.width) left = evt.clientX - rectBounds.left - 194;
+        tooltip.style.left = left + "px";
+        tooltip.style.top = top + "px";
+        tooltip.style.opacity = 1;
+      });
+      hit.addEventListener("mouseleave", function () {
+        crosshair.setAttribute("opacity", "0");
+        tooltip.style.opacity = 0;
+      });
+      svg.appendChild(hit);
+    });
+
+    chartTarget.appendChild(svg);
+  }
+
+  /* ---------- render all ---------- */
+  function render() {
+    renderStats();
+    renderTable();
+    renderLegend();
+    renderChart();
+  }
+
+  window.addEventListener("resize", function () {
+    window.clearTimeout(window.__chartResizeT);
+    window.__chartResizeT = window.setTimeout(renderChart, 120);
+  });
+
+  if (cfgReady()) {
+    fetchRounds();
+  } else {
+    setStatus("아직 연결되지 않았어요.");
+    render();
+  }
+
+  /* ---------- PWA: 서비스 워커 등록 ---------- */
+  // file:// 로 직접 연 경우 서비스 워커는 브라우저가 아예 지원하지 않으므로 조용히 건너뛴다.
+  // (https:// 로 호스팅했을 때만 등록되고, 홈 화면 추가도 그 상태에서만 동작한다)
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+})();
+</script>
+</body>
+</html>

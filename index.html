@@ -127,9 +127,22 @@
 
   .left-col, .right-col { display: flex; flex-direction: column; gap: 16px; }
 
-  #cfg-status { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
-  #cfg-status.ok { color: var(--good); }
-  #cfg-status.err { color: var(--series-2); }
+  #auth-status { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+  #auth-status.ok { color: var(--good); }
+  #auth-status.err { color: var(--series-2); }
+
+  .auth-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .auth-tab-btn {
+    flex: 1; background: var(--page); color: var(--text-secondary);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .auth-tab-btn.active { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+  .auth-form { display: none; flex-direction: column; gap: 12px; }
+  .auth-form.active { display: flex; }
+
+  #account-info { font-size: 13px; color: var(--text-primary); margin-bottom: 12px; }
+  #account-info .acc-phone { color: var(--text-secondary); font-size: 12px; }
 
   /* stat tiles */
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
@@ -205,25 +218,55 @@
   <header>
     <div>
       <h1>골프 라운딩 대시보드</h1>
-      <p>라운딩 기록은 연결된 Google 시트에 저장됩니다. 같은 URL과 토큰을 입력하면 PC·폰에서 같은 기록을 볼 수 있어요.</p>
+      <p>로그인하면 나만의 Google 시트에 기록이 저장됩니다. 같은 전화번호와 개인코드로 로그인하면 PC·폰에서 같은 기록을 볼 수 있어요.</p>
     </div>
     <button id="theme-toggle" type="button">다크 모드</button>
   </header>
 
   <div class="layout">
     <div class="left-col">
-      <div class="card">
-        <h2>Google Sheets 연결</h2>
-        <div class="field">
-          <label for="cfg-url">Apps Script 웹앱 URL</label>
-          <input type="text" id="cfg-url" placeholder="https://script.google.com/macros/s/.../exec">
+      <div class="card" id="auth-card">
+        <h2>로그인 / 회원가입</h2>
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab-btn active" id="tab-login" data-tab="login">로그인</button>
+          <button type="button" class="auth-tab-btn" id="tab-signup" data-tab="signup">회원가입</button>
         </div>
-        <div class="field">
-          <label for="cfg-token">토큰</label>
-          <input type="text" id="cfg-token" placeholder="Apps Script 코드에 설정한 토큰">
-        </div>
-        <button type="button" id="cfg-save" class="submit-btn">연결 저장</button>
-        <div id="cfg-status">아직 연결되지 않았어요.</div>
+
+        <form id="login-form" class="auth-form active">
+          <div class="field">
+            <label for="login-phone">전화번호</label>
+            <input type="tel" id="login-phone" placeholder="01012345678" required>
+          </div>
+          <div class="field">
+            <label for="login-pin">개인코드(PIN)</label>
+            <input type="password" id="login-pin" inputmode="numeric" placeholder="4자리 이상" required>
+          </div>
+          <button type="submit" class="submit-btn">로그인</button>
+        </form>
+
+        <form id="signup-form" class="auth-form">
+          <div class="field">
+            <label for="signup-name">이름</label>
+            <input type="text" id="signup-name" placeholder="홍길동" required>
+          </div>
+          <div class="field">
+            <label for="signup-phone">전화번호</label>
+            <input type="tel" id="signup-phone" placeholder="01012345678" required>
+          </div>
+          <div class="field">
+            <label for="signup-pin">개인코드(PIN, 4자리 이상)</label>
+            <input type="password" id="signup-pin" inputmode="numeric" placeholder="숫자 4자리 이상" required>
+          </div>
+          <button type="submit" class="submit-btn">회원가입</button>
+        </form>
+
+        <div id="auth-status">아직 로그인하지 않았어요.</div>
+      </div>
+
+      <div class="card" id="account-card" style="display:none;">
+        <h2>내 계정</h2>
+        <div id="account-info"></div>
+        <button type="button" id="logout-btn" class="submit-btn" style="background:var(--series-2);">로그아웃</button>
       </div>
 
       <div class="card">
@@ -325,8 +368,11 @@
 (function () {
   "use strict";
 
-  var API_CONFIG_KEY = "golfApiConfig";
+  var SESSION_KEY = "golfSession";
   var THEME_KEY = "golfDashboardTheme";
+
+  // 모든 사용자가 공유하는 Apps Script 웹앱 URL. Code.gs를 배포한 뒤 이 값을 실제 배포 URL로 교체하세요.
+  var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxPu9rFcBqhP8t4W5rkjcAGqYW1c3XGh7Zy6KHNAw3Do-FjmouL10Tc14gpFv6mhQK4VQ/exec";
 
   /* ---------- theme ---------- */
   function applyTheme(theme) {
@@ -349,48 +395,134 @@
     applyTheme(next);
   });
 
-  /* ---------- Google Sheets API config ---------- */
-  function loadApiConfig() {
+  /* ---------- 로그인 세션 ---------- */
+  function loadSession() {
     try {
-      var parsed = JSON.parse(localStorage.getItem(API_CONFIG_KEY));
-      return (parsed && parsed.url && parsed.token) ? parsed : null;
+      var parsed = JSON.parse(localStorage.getItem(SESSION_KEY));
+      return (parsed && parsed.token) ? parsed : null;
     } catch (e) {
       return null;
     }
   }
-  function saveApiConfig(cfg) { localStorage.setItem(API_CONFIG_KEY, JSON.stringify(cfg)); }
-  function cfgReady() { return !!apiConfig; }
+  function saveSession(s) { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }
+  function clearSession() { localStorage.removeItem(SESSION_KEY); }
+  function sessionReady() { return !!session; }
 
-  var apiConfig = loadApiConfig();
+  var session = loadSession();
   var rounds = [];
 
-  var cfgUrlInput = document.getElementById("cfg-url");
-  var cfgTokenInput = document.getElementById("cfg-token");
-  var cfgStatus = document.getElementById("cfg-status");
-  if (apiConfig) {
-    cfgUrlInput.value = apiConfig.url;
-    cfgTokenInput.value = apiConfig.token;
-  }
+  var authCard = document.getElementById("auth-card");
+  var accountCard = document.getElementById("account-card");
+  var accountInfo = document.getElementById("account-info");
+  var authStatus = document.getElementById("auth-status");
 
-  function setStatus(msg, kind) {
-    cfgStatus.textContent = msg;
-    cfgStatus.className = kind || "";
+  function setAuthStatus(msg, kind) {
+    authStatus.textContent = msg;
+    authStatus.className = kind || "";
   }
   function nowTime() {
     var d = new Date();
     return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
   }
 
-  document.getElementById("cfg-save").addEventListener("click", function () {
-    var url = cfgUrlInput.value.trim();
-    var token = cfgTokenInput.value.trim();
-    if (!url || !token) {
-      setStatus("URL과 토큰을 모두 입력해주세요.", "err");
+  function updateAuthUI() {
+    if (session) {
+      authCard.style.display = "none";
+      accountCard.style.display = "";
+      accountInfo.innerHTML = escapeHtml(session.name) + '<div class="acc-phone">' + escapeHtml(session.phone) + "</div>";
+    } else {
+      authCard.style.display = "";
+      accountCard.style.display = "none";
+    }
+  }
+
+  var authErrMessages = {
+    name_required: "이름을 입력해주세요.",
+    phone_required: "전화번호를 입력해주세요.",
+    missing_fields: "전화번호와 개인코드를 입력해주세요.",
+    pin_too_short: "개인코드는 4자리 이상이어야 해요.",
+    phone_already_registered: "이미 가입된 전화번호예요. 로그인해주세요.",
+    invalid_credentials: "전화번호 또는 개인코드가 올바르지 않아요.",
+    invalid_token: "로그인이 만료됐어요. 다시 로그인해주세요.",
+    not_logged_in: "로그인이 필요해요."
+  };
+  function authErrMsg(err) {
+    if (err.code === "BAD_RESPONSE") return "서버 응답을 읽지 못했어요. 잠시 후 다시 시도해주세요.";
+    return authErrMessages[err.message] || err.message;
+  }
+
+  /* ---------- 로그인/회원가입 탭 전환 ---------- */
+  var tabLogin = document.getElementById("tab-login");
+  var tabSignup = document.getElementById("tab-signup");
+  var loginForm = document.getElementById("login-form");
+  var signupForm = document.getElementById("signup-form");
+  function switchAuthTab(tab) {
+    var isLogin = tab === "login";
+    tabLogin.classList.toggle("active", isLogin);
+    tabSignup.classList.toggle("active", !isLogin);
+    loginForm.classList.toggle("active", isLogin);
+    signupForm.classList.toggle("active", !isLogin);
+    setAuthStatus("");
+  }
+  tabLogin.addEventListener("click", function () { switchAuthTab("login"); });
+  tabSignup.addEventListener("click", function () { switchAuthTab("signup"); });
+
+  loginForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var phone = document.getElementById("login-phone").value.trim();
+    var pin = document.getElementById("login-pin").value.trim();
+    if (!phone || !pin) {
+      setAuthStatus("전화번호와 개인코드를 입력해주세요.", "err");
       return;
     }
-    apiConfig = { url: url, token: token };
-    saveApiConfig(apiConfig);
-    fetchRounds();
+    setAuthStatus("로그인 중...");
+    apiPost({ action: "login", phone: phone, pin: pin }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || "unknown_error");
+      session = { token: res.token, name: res.name, phone: phone };
+      saveSession(session);
+      loginForm.reset();
+      setAuthStatus("");
+      updateAuthUI();
+      fetchRounds();
+    }).catch(function (err) {
+      setAuthStatus("로그인 실패: " + authErrMsg(err), "err");
+    });
+  });
+
+  signupForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = document.getElementById("signup-name").value.trim();
+    var phone = document.getElementById("signup-phone").value.trim();
+    var pin = document.getElementById("signup-pin").value.trim();
+    if (!name || !phone || !pin) {
+      setAuthStatus("이름, 전화번호, 개인코드를 모두 입력해주세요.", "err");
+      return;
+    }
+    if (pin.length < 4) {
+      setAuthStatus("개인코드는 4자리 이상이어야 해요.", "err");
+      return;
+    }
+    setAuthStatus("가입 중... 새 시트를 만들고 있어요.");
+    apiPost({ action: "signup", name: name, phone: phone, pin: pin }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || "unknown_error");
+      session = { token: res.token, name: res.name, phone: phone };
+      saveSession(session);
+      signupForm.reset();
+      setAuthStatus("");
+      updateAuthUI();
+      fetchRounds();
+    }).catch(function (err) {
+      setAuthStatus("회원가입 실패: " + authErrMsg(err), "err");
+    });
+  });
+
+  document.getElementById("logout-btn").addEventListener("click", function () {
+    session = null;
+    clearSession();
+    rounds = [];
+    updateAuthUI();
+    switchAuthTab("login");
+    render();
   });
 
   /* ---------- API calls ---------- */
@@ -408,12 +540,12 @@
     }
   }
   function apiGet(action) {
-    var url = apiConfig.url + "?token=" + encodeURIComponent(apiConfig.token) + "&action=" + encodeURIComponent(action);
+    var url = APPS_SCRIPT_URL + "?token=" + encodeURIComponent(session ? session.token : "") + "&action=" + encodeURIComponent(action);
     return fetch(url).then(function (res) { return res.text(); }).then(parseJsonSafe);
   }
   function apiPost(payload) {
-    var body = Object.assign({ token: apiConfig.token }, payload);
-    return fetch(apiConfig.url, {
+    var body = Object.assign({ token: session ? session.token : "" }, payload);
+    return fetch(APPS_SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(body)
@@ -421,12 +553,12 @@
   }
 
   function fetchRounds() {
-    if (!cfgReady()) {
+    if (!sessionReady()) {
       rounds = [];
       render();
       return Promise.resolve();
     }
-    setStatus("불러오는 중...");
+    setAuthStatus("불러오는 중...");
     return apiGet("list").then(function (data) {
       if (!data.ok) throw new Error(data.error || "unknown_error");
       rounds = data.rows.map(function (r) {
@@ -438,11 +570,10 @@
           photo: r.photo || ""
         };
       });
-      setStatus("연결됨 · 마지막 동기화 " + nowTime(), "ok");
+      setAuthStatus("로그인됨 · 마지막 동기화 " + nowTime(), "ok");
       render();
     }).catch(function (err) {
-      var msg = err.code === "BAD_RESPONSE" ? "서버 응답을 읽지 못했어요. 잠시 후 다시 시도해주세요." : err.message;
-      setStatus("불러오기 실패: " + msg, "err");
+      setAuthStatus("불러오기 실패: " + authErrMsg(err), "err");
       render();
     });
   }
@@ -583,8 +714,8 @@
     e.preventDefault();
     errorBox.textContent = "";
 
-    if (!cfgReady()) {
-      errorBox.textContent = "먼저 위에서 Google Sheets 연결을 저장해주세요.";
+    if (!sessionReady()) {
+      errorBox.textContent = "먼저 로그인해주세요.";
       return;
     }
 
@@ -726,9 +857,9 @@
   function renderTable() {
     var body = document.getElementById("table-body");
     if (rounds.length === 0) {
-      var msg = cfgReady()
+      var msg = sessionReady()
         ? "아직 기록된 라운딩이 없어요. 왼쪽 폼에서 첫 기록을 추가해보세요."
-        : "위에서 Google Sheets 연결을 저장하면 기록이 표시돼요.";
+        : "로그인하면 기록이 표시돼요.";
       body.innerHTML = '<tr class="empty-row"><td colspan="10">' + msg + '</td></tr>';
       return;
     }
@@ -779,9 +910,9 @@
     tooltip.style.opacity = 0;
 
     if (data.length < 2) {
-      var msg = cfgReady()
+      var msg = sessionReady()
         ? "라운딩을 2개 이상 기록하면 추이 그래프가 표시돼요."
-        : "Google Sheets 연결 후 기록을 추가하면 그래프가 표시돼요.";
+        : "로그인 후 기록을 추가하면 그래프가 표시돼요.";
       chartTarget.innerHTML = '<div class="chart-empty">' + msg + '</div>';
       return;
     }
@@ -964,10 +1095,11 @@
     window.__chartResizeT = window.setTimeout(renderChart, 120);
   });
 
-  if (cfgReady()) {
+  updateAuthUI();
+  if (sessionReady()) {
     fetchRounds();
   } else {
-    setStatus("아직 연결되지 않았어요.");
+    setAuthStatus("아직 로그인하지 않았어요.");
     render();
   }
 

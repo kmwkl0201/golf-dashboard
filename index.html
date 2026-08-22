@@ -254,8 +254,8 @@
 <div class="wrap">
   <header>
     <div>
-      <h1>골프 라운딩 대시보드</h1>
-      <p>로그인하면 나만의 Google 시트에 기록이 저장됩니다. 같은 전화번호와 개인코드로 로그인하면 PC·폰에서 같은 기록을 볼 수 있어요.</p>
+      <h1>나만의 골프라운딩 기록</h1>
+      <p id="intro-text">로그인하면 나만의 골프라운딩 기록을 저장할 수 있습니다.</p>
     </div>
     <button id="theme-toggle" type="button">다크 모드</button>
   </header>
@@ -469,14 +469,18 @@
     return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
   }
 
+  var introText = document.getElementById("intro-text");
+
   function updateAuthUI() {
     if (session) {
       authCard.style.display = "none";
       accountCard.style.display = "";
       accountInfo.innerHTML = escapeHtml(session.name) + '<div class="acc-phone">' + escapeHtml(session.phone) + "</div>";
+      introText.style.display = "none";
     } else {
       authCard.style.display = "";
       accountCard.style.display = "none";
+      introText.style.display = "";
     }
   }
 

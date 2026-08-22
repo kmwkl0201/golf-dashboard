@@ -208,8 +208,9 @@ function getUsersSheet_() {
   if (!sheet) {
     sheet = ss.insertSheet("Users");
     sheet.appendRow(["Name", "Phone", "PinHash", "SpreadsheetId", "SessionToken", "CreatedAt"]);
-    sheet.getRange("B:B").setNumberFormat("@"); // 전화번호가 숫자로 변환되지 않도록 텍스트 서식 고정
   }
+  // 기존 시트를 재사용하는 경우에도 매번 적용해야 신규 행에 텍스트 서식이 유지된다.
+  sheet.getRange("B:B").setNumberFormat("@"); // 전화번호가 숫자로 변환되지 않도록 텍스트 서식 고정
   return sheet;
 }
 

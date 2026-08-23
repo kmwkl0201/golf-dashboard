@@ -100,6 +100,13 @@
   }
   .card h2 { font-size: 14px; font-weight: 600; margin: 0 0 14px; color: var(--text-primary); }
 
+  .form-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .form-card-header h2 { margin: 0; }
+  .cancel-edit-btn {
+    background: none; border: none; color: var(--series-1); font-size: 12px; font-weight: 600; cursor: pointer; padding: 0;
+  }
+  .cancel-edit-btn:hover { text-decoration: underline; }
+
   .layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: start; }
   @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
 
@@ -294,7 +301,8 @@
     white-space: pre-wrap; font-size: 13px; color: var(--text-primary);
     background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
   }
-  .modal-delete-btn { margin-top: 4px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 4px; }
+  .del-btn.modal-edit-btn:hover { color: var(--series-1); border-color: var(--series-1); }
 
   /* photo slide viewer */
   .modal-slide-viewport {
@@ -386,7 +394,10 @@
       </div>
 
       <div class="card">
-      <h2>새 추억 남기기</h2>
+      <div class="form-card-header">
+        <h2 id="form-heading">새 추억 남기기</h2>
+        <button type="button" id="cancel-edit-btn" class="cancel-edit-btn" style="display:none;">취소</button>
+      </div>
       <form id="round-form">
         <div class="field">
           <label for="f-date">날짜</label>
@@ -730,17 +741,19 @@
 
   /* ---------- companion row UI ---------- */
   var companionsRowsEl = document.getElementById("companions-rows");
-  function addCompanionRow() {
+  function addCompanionRow(name, score) {
     var row = document.createElement("div");
     row.className = "companion-row";
     row.innerHTML =
       '<input type="text" class="comp-name" placeholder="이름">' +
       '<input type="number" class="comp-score" placeholder="스코어" min="18" max="200">' +
       '<button type="button" class="comp-remove">×</button>';
+    if (name) row.querySelector(".comp-name").value = name;
+    if (score) row.querySelector(".comp-score").value = score;
     row.querySelector(".comp-remove").addEventListener("click", function () { row.remove(); });
     companionsRowsEl.appendChild(row);
   }
-  document.getElementById("add-companion").addEventListener("click", addCompanionRow);
+  document.getElementById("add-companion").addEventListener("click", function () { addCompanionRow(); });
   function collectCompanions() {
     var list = [];
     Array.prototype.forEach.call(companionsRowsEl.querySelectorAll(".companion-row"), function (row) {
@@ -754,11 +767,17 @@
     companionsRowsEl.innerHTML = "";
     addCompanionRow();
   }
+  function setCompanionRows(list) {
+    companionsRowsEl.innerHTML = "";
+    if (!list.length) { addCompanionRow(); return; }
+    list.forEach(function (c) { addCompanionRow(c.name, c.score); });
+  }
   addCompanionRow();
 
   /* ---------- photo upload ---------- */
   var MAX_PHOTOS = 6;
-  var pendingPhotos = []; // [{ dataUrl, mimeType }]
+  var pendingPhotos = []; // [{ dataUrl, mimeType }] 새로 추가된, 아직 업로드 안 된 사진
+  var existingPhotos = []; // [url] 수정 중인 기록에 이미 첨부된, 유지할 사진
   var photoInput = document.getElementById("f-photo");
   var photoPreviewWrap = document.getElementById("photo-preview-wrap");
   var photoStatus = document.getElementById("photo-status");
@@ -800,22 +819,36 @@
     });
   }
 
+  function totalPhotoCount() { return existingPhotos.length + pendingPhotos.length; }
+  function updatePhotoStatusText() {
+    var total = totalPhotoCount();
+    photoStatus.textContent = total ? (total + "장 선택됨") : "";
+  }
+
   function renderPhotoPreviews() {
-    if (!pendingPhotos.length) {
+    if (!totalPhotoCount()) {
       photoPreviewWrap.style.display = "none";
       photoPreviewWrap.innerHTML = "";
       return;
     }
     photoPreviewWrap.style.display = "flex";
-    photoPreviewWrap.innerHTML = pendingPhotos.map(function (p, i) {
-      return '<div class="photo-preview-item"><img src="' + p.dataUrl + '" alt="미리보기 ' + (i + 1) + '">' +
-        '<button type="button" class="photo-preview-remove" data-idx="' + i + '" aria-label="사진 제거">×</button></div>';
+    var existingHtml = existingPhotos.map(function (url, i) {
+      var thumb = driveThumbUrl(url, 160) || url;
+      return '<div class="photo-preview-item"><img src="' + escapeHtml(thumb) + '" alt="기존 사진 ' + (i + 1) + '">' +
+        '<button type="button" class="photo-preview-remove" data-kind="existing" data-idx="' + i + '" aria-label="사진 제거">×</button></div>';
     }).join("");
+    var pendingHtml = pendingPhotos.map(function (p, i) {
+      return '<div class="photo-preview-item"><img src="' + p.dataUrl + '" alt="새 사진 ' + (i + 1) + '">' +
+        '<button type="button" class="photo-preview-remove" data-kind="pending" data-idx="' + i + '" aria-label="사진 제거">×</button></div>';
+    }).join("");
+    photoPreviewWrap.innerHTML = existingHtml + pendingHtml;
     Array.prototype.forEach.call(photoPreviewWrap.querySelectorAll(".photo-preview-remove"), function (btn) {
       btn.addEventListener("click", function () {
-        pendingPhotos.splice(parseInt(btn.getAttribute("data-idx"), 10), 1);
+        var idx = parseInt(btn.getAttribute("data-idx"), 10);
+        if (btn.getAttribute("data-kind") === "existing") existingPhotos.splice(idx, 1);
+        else pendingPhotos.splice(idx, 1);
         renderPhotoPreviews();
-        photoStatus.textContent = pendingPhotos.length ? (pendingPhotos.length + "장 선택됨") : "";
+        updatePhotoStatusText();
       });
     });
   }
@@ -824,7 +857,7 @@
     var files = Array.prototype.slice.call(photoInput.files || []);
     if (!files.length) return;
 
-    var remaining = MAX_PHOTOS - pendingPhotos.length;
+    var remaining = MAX_PHOTOS - totalPhotoCount();
     if (remaining <= 0) {
       photoStatus.textContent = "최대 " + MAX_PHOTOS + "장까지 첨부할 수 있어요.";
       photoInput.value = "";
@@ -840,7 +873,7 @@
       pendingPhotos = pendingPhotos.concat(results);
       renderPhotoPreviews();
       if (!truncated) {
-        photoStatus.textContent = pendingPhotos.length + "장 선택됨 · 업로드 시 몇 초 정도 걸릴 수 있어요.";
+        photoStatus.textContent = totalPhotoCount() + "장 선택됨 · 업로드 시 몇 초 정도 걸릴 수 있어요.";
       }
     }).catch(function () {
       photoStatus.textContent = "사진을 처리하지 못했어요. 다른 파일을 시도해주세요.";
@@ -851,6 +884,7 @@
 
   function resetPhotoInputs() {
     pendingPhotos = [];
+    existingPhotos = [];
     photoInput.value = "";
     renderPhotoPreviews();
     photoStatus.textContent = "";
@@ -861,10 +895,55 @@
     return m ? ("https://drive.google.com/thumbnail?id=" + m[1] + "&sz=w" + (size || 160)) : null;
   }
 
-  /* ---------- form ---------- */
+  /* ---------- form (신규 추가 / 수정 공용) ---------- */
   var form = document.getElementById("round-form");
   var errorBox = document.getElementById("form-error");
   var submitBtn = form.querySelector(".submit-btn");
+  var formHeading = document.getElementById("form-heading");
+  var cancelEditBtn = document.getElementById("cancel-edit-btn");
+  var editingId = null; // null이면 새 기록 추가, 값이 있으면 그 row를 수정 중
+
+  function submitBtnIdleLabel() { return editingId ? "수정 완료" : "기록 추가"; }
+
+  function updateFormModeUI() {
+    if (editingId) {
+      formHeading.textContent = "라운딩 수정 중";
+      cancelEditBtn.style.display = "";
+    } else {
+      formHeading.textContent = "새 추억 남기기";
+      cancelEditBtn.style.display = "none";
+    }
+    submitBtn.textContent = submitBtnIdleLabel();
+  }
+
+  function startEditRound(r) {
+    editingId = r.id;
+    document.getElementById("f-date").value = r.date;
+    document.getElementById("f-course").value = r.course;
+    document.getElementById("f-score").value = r.score;
+    document.getElementById("f-par").value = r.par;
+    document.getElementById("f-weather").value = r.weather || "";
+    setCompanionRows(decodeCompanions(r.companions));
+    document.getElementById("f-memo").value = r.memo || "";
+    pendingPhotos = [];
+    existingPhotos = (r.photos || []).slice();
+    photoInput.value = "";
+    renderPhotoPreviews();
+    updatePhotoStatusText();
+    errorBox.textContent = "";
+    updateFormModeUI();
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function exitEditMode() {
+    editingId = null;
+    form.reset();
+    resetCompanionRows();
+    resetPhotoInputs();
+    errorBox.textContent = "";
+    updateFormModeUI();
+  }
+  cancelEditBtn.addEventListener("click", exitEditMode);
 
   form.addEventListener("submit", function (e) {
     e.preventDefault();
@@ -892,10 +971,18 @@
       return;
     }
 
-    var payload = {
-      action: "add",
-      record: { date: date, course: course, score: score, par: par, weather: weather, companions: companions, memo: memo }
-    };
+    var isEditing = !!editingId;
+    var payload = isEditing
+      ? {
+          action: "update",
+          row: editingId,
+          record: { date: date, course: course, score: score, par: par, weather: weather, companions: companions, memo: memo },
+          existingPhotos: existingPhotos.slice()
+        }
+      : {
+          action: "add",
+          record: { date: date, course: course, score: score, par: par, weather: weather, companions: companions, memo: memo }
+        };
     if (pendingPhotos.length) {
       var safeName = (course || "round").replace(/[^a-zA-Z0-9가-힣_-]/g, "_");
       payload.photos = pendingPhotos.map(function (p, i) {
@@ -908,31 +995,35 @@
     }
 
     submitBtn.disabled = true;
-    submitBtn.textContent = pendingPhotos.length ? "업로드 중..." : "저장 중...";
+    submitBtn.textContent = pendingPhotos.length ? "업로드 중..." : (isEditing ? "수정 중..." : "저장 중...");
     apiPost(payload).then(function (res) {
       if (!res.ok) throw new Error(res.error || "unknown_error");
+      editingId = null;
       form.reset();
       resetCompanionRows();
       resetPhotoInputs();
+      updateFormModeUI();
       return fetchRounds();
     }).catch(function (err) {
       if (err.code === "BAD_RESPONSE") {
         // Apps Script 실행 자체는 성공했는데 응답만 깨져서 왔을 가능성이 있다.
-        // 같은 요청을 다시 보내면 행이 중복 저장될 수 있으므로 재요청 대신
-        // 목록을 다시 불러와 실제로 저장됐는지 확인시켜준다.
+        // 같은 요청을 다시 보내면 행이 중복 저장/덮어쓰기될 수 있으므로 재요청 대신
+        // 목록을 다시 불러와 실제로 반영됐는지 확인시켜준다.
         errorBox.textContent = "서버 응답을 읽지 못했어요. 실제 저장 여부를 확인하기 위해 목록을 새로고침할게요...";
+        editingId = null;
         form.reset();
         resetCompanionRows();
         resetPhotoInputs();
+        updateFormModeUI();
         fetchRounds().then(function () {
-          errorBox.textContent = "목록을 새로고침했어요. 방금 입력한 기록이 보이면 정상 저장된 거예요. 안 보이면 사진을 좀 더 작게 줄이거나 다시 시도해주세요.";
+          errorBox.textContent = "목록을 새로고침했어요. 방금 입력한 내용이 반영됐으면 정상 처리된 거예요. 안 보이면 사진을 좀 더 작게 줄이거나 다시 시도해주세요.";
         });
       } else {
-        errorBox.textContent = "저장 실패: " + err.message;
+        errorBox.textContent = (isEditing ? "수정 실패: " : "저장 실패: ") + err.message;
       }
     }).finally(function () {
       submitBtn.disabled = false;
-      submitBtn.textContent = "기록 추가";
+      submitBtn.textContent = submitBtnIdleLabel();
     });
   });
 
@@ -1121,7 +1212,10 @@
           toParClass(toPar) + '">' + fmtToPar(toPar) + '</span></div>' +
         '<div class="modal-section"><h3>동반자</h3>' + companionsHtml + '</div>' +
         '<div class="modal-section"><h3>메모</h3><div class="modal-memo">' + escapeHtml(r.memo || "메모 없음") + '</div></div>' +
-        '<button type="button" class="del-btn modal-delete-btn" id="modal-delete-btn">이 기록 삭제</button>' +
+        '<div class="modal-actions">' +
+          '<button type="button" class="del-btn modal-edit-btn" id="modal-edit-btn">수정</button>' +
+          '<button type="button" class="del-btn modal-delete-btn" id="modal-delete-btn">이 기록 삭제</button>' +
+        '</div>' +
       '</div>';
 
     if (modalPhotos.length > 1) {
@@ -1131,6 +1225,10 @@
         dot.addEventListener("click", function () { setModalSlide(parseInt(dot.getAttribute("data-idx"), 10)); });
       });
     }
+    modalContent.querySelector("#modal-edit-btn").addEventListener("click", function () {
+      closeModal();
+      startEditRound(r);
+    });
     modalContent.querySelector("#modal-delete-btn").addEventListener("click", function () {
       closeModal();
       deleteRound(r.id);

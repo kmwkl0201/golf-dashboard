@@ -45,6 +45,7 @@ function doPost(e) {
       case "signup": return handleSignup_(body);
       case "login": return handleLogin_(body);
       case "add": return handleAdd_(body);
+      case "update": return handleUpdate_(body);
       case "delete": return handleDelete_(body);
       default: return jsonOut_({ ok: false, error: "unknown_action" });
     }
@@ -130,14 +131,10 @@ function handleList_(token) {
   return jsonOut_({ ok: true, rows: rows });
 }
 
-function handleAdd_(body) {
-  var user = resolveUser_(body.token);
-  var sheet = getRecordsSheet_(user.spreadsheetId);
-  var record = body.record || {};
-
-  var photos = Array.isArray(body.photos) ? body.photos : (body.photo ? [body.photo] : []);
-  var photoUrls = [];
-  photos.slice(0, MAX_PHOTOS).forEach(function (photo) {
+function uploadPhotos_(photos, limit) {
+  var urls = [];
+  (photos || []).forEach(function (photo) {
+    if (urls.length >= limit) return;
     if (!photo || !photo.data) return;
     var bytes = Utilities.base64Decode(photo.data);
     var blob = Utilities.newBlob(bytes, photo.mimeType || "image/jpeg", photo.filename || "round.jpg");
@@ -147,13 +144,43 @@ function handleAdd_(body) {
     } catch (shareErr) {
       // 공유 설정 실패해도 기록 저장은 계속 진행
     }
-    photoUrls.push(file.getUrl());
+    urls.push(file.getUrl());
   });
+  return urls;
+}
+
+function handleAdd_(body) {
+  var user = resolveUser_(body.token);
+  var sheet = getRecordsSheet_(user.spreadsheetId);
+  var record = body.record || {};
+
+  var photos = Array.isArray(body.photos) ? body.photos : (body.photo ? [body.photo] : []);
+  var photoUrls = uploadPhotos_(photos, MAX_PHOTOS);
 
   sheet.appendRow([
     record.date || "", record.course || "", record.score || "", record.par || "",
     record.weather || "", record.companions || "", record.memo || "", photoUrls.join(",")
   ]);
+  return jsonOut_({ ok: true });
+}
+
+function handleUpdate_(body) {
+  var user = resolveUser_(body.token);
+  var sheet = getRecordsSheet_(user.spreadsheetId);
+  var rowNum = parseInt(body.row, 10);
+  if (!rowNum || rowNum < 2 || rowNum > sheet.getLastRow()) {
+    return jsonOut_({ ok: false, error: "invalid_row" });
+  }
+  var record = body.record || {};
+
+  var existingPhotos = Array.isArray(body.existingPhotos) ? body.existingPhotos.filter(Boolean) : [];
+  var newUrls = uploadPhotos_(body.photos, Math.max(0, MAX_PHOTOS - existingPhotos.length));
+  var photoUrls = existingPhotos.concat(newUrls).slice(0, MAX_PHOTOS);
+
+  sheet.getRange(rowNum, 1, 1, 8).setValues([[
+    record.date || "", record.course || "", record.score || "", record.par || "",
+    record.weather || "", record.companions || "", record.memo || "", photoUrls.join(",")
+  ]]);
   return jsonOut_({ ok: true });
 }
 

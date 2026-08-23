@@ -77,11 +77,19 @@
   header { margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   header h1 { font-size: 20px; font-weight: 600; margin: 0; }
   header p { margin: 4px 0 0; color: var(--text-secondary); font-size: 13px; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
   #theme-toggle {
     border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
     border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;
   }
   #theme-toggle:hover { color: var(--text-primary); }
+  .icon-btn {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+    border-radius: 8px; width: 30px; height: 30px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .icon-btn:hover { color: var(--text-primary); }
+  .icon-btn svg { width: 16px; height: 16px; }
 
   .card {
     background: var(--surface-1);
@@ -141,7 +149,11 @@
   .auth-form { display: none; flex-direction: column; gap: 12px; }
   .auth-form.active { display: flex; }
 
-  #account-info { font-size: 13px; color: var(--text-primary); margin-bottom: 12px; }
+  #account-card { padding: 10px 16px; }
+  #account-info {
+    display: flex; align-items: baseline; gap: 8px;
+    font-size: 13px; color: var(--text-primary);
+  }
   #account-info .acc-phone { color: var(--text-secondary); font-size: 12px; }
 
   /* stat tiles */
@@ -257,7 +269,12 @@
       <h1>나만의 골프라운딩 기록</h1>
       <p id="intro-text">로그인하면 나만의 골프라운딩 기록을 저장할 수 있습니다.</p>
     </div>
-    <button id="theme-toggle" type="button">다크 모드</button>
+    <div class="header-actions">
+      <button id="logout-btn" type="button" class="icon-btn" title="로그아웃" aria-label="로그아웃" style="display:none;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+      <button id="theme-toggle" type="button">다크 모드</button>
+    </div>
   </header>
 
   <div class="layout">
@@ -301,9 +318,7 @@
       </div>
 
       <div class="card" id="account-card" style="display:none;">
-        <h2>내 계정</h2>
         <div id="account-info"></div>
-        <button type="button" id="logout-btn" class="submit-btn" style="background:var(--series-2);">로그아웃</button>
       </div>
 
       <div class="card">
@@ -476,6 +491,7 @@
   var accountCard = document.getElementById("account-card");
   var accountInfo = document.getElementById("account-info");
   var authStatus = document.getElementById("auth-status");
+  var logoutBtn = document.getElementById("logout-btn");
 
   function setAuthStatus(msg, kind) {
     authStatus.textContent = msg;
@@ -492,12 +508,14 @@
     if (session) {
       authCard.style.display = "none";
       accountCard.style.display = "";
-      accountInfo.innerHTML = escapeHtml(session.name) + '<div class="acc-phone">' + escapeHtml(session.phone) + "</div>";
+      accountInfo.innerHTML = "<span>" + escapeHtml(session.name) + '</span><span class="acc-phone">' + escapeHtml(session.phone) + "</span>";
       introText.style.display = "none";
+      logoutBtn.style.display = "";
     } else {
       authCard.style.display = "";
       accountCard.style.display = "none";
       introText.style.display = "";
+      logoutBtn.style.display = "none";
     }
   }
 
@@ -581,7 +599,7 @@
     });
   });
 
-  document.getElementById("logout-btn").addEventListener("click", function () {
+  logoutBtn.addEventListener("click", function () {
     session = null;
     clearSession();
     rounds = [];

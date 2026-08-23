@@ -19,6 +19,7 @@
  */
 
 var PIN_SALT = "CHANGE_THIS_SALT_VALUE";
+var MAX_PHOTOS = 6;
 
 /* ---------- 진입점 ---------- */
 
@@ -112,6 +113,7 @@ function handleList_(token) {
     var values = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
     values.forEach(function (v, i) {
       if (!v[0] && !v[1]) return;
+      var photos = String(v[7] || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
       rows.push({
         row: i + 2,
         date: formatDate_(v[0]),
@@ -121,7 +123,7 @@ function handleList_(token) {
         weather: v[4],
         companions: v[5],
         memo: v[6],
-        photo: v[7]
+        photos: photos
       });
     });
   }
@@ -133,22 +135,24 @@ function handleAdd_(body) {
   var sheet = getRecordsSheet_(user.spreadsheetId);
   var record = body.record || {};
 
-  var photoUrl = "";
-  if (body.photo && body.photo.data) {
-    var bytes = Utilities.base64Decode(body.photo.data);
-    var blob = Utilities.newBlob(bytes, body.photo.mimeType || "image/jpeg", body.photo.filename || "scorecard.jpg");
+  var photos = Array.isArray(body.photos) ? body.photos : (body.photo ? [body.photo] : []);
+  var photoUrls = [];
+  photos.slice(0, MAX_PHOTOS).forEach(function (photo) {
+    if (!photo || !photo.data) return;
+    var bytes = Utilities.base64Decode(photo.data);
+    var blob = Utilities.newBlob(bytes, photo.mimeType || "image/jpeg", photo.filename || "round.jpg");
     var file = DriveApp.createFile(blob);
     try {
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     } catch (shareErr) {
       // 공유 설정 실패해도 기록 저장은 계속 진행
     }
-    photoUrl = file.getUrl();
-  }
+    photoUrls.push(file.getUrl());
+  });
 
   sheet.appendRow([
     record.date || "", record.course || "", record.score || "", record.par || "",
-    record.weather || "", record.companions || "", record.memo || "", photoUrl
+    record.weather || "", record.companions || "", record.memo || "", photoUrls.join(",")
   ]);
   return jsonOut_({ ok: true });
 }
@@ -218,7 +222,7 @@ function createUserSpreadsheet_(name) {
   var ss = SpreadsheetApp.create(name + "님의 골프 기록");
   var sheet = ss.getActiveSheet();
   sheet.setName("Records");
-  sheet.appendRow(["Date", "Course", "Score", "Par", "Weather", "Companions", "Memo", "Photo"]);
+  sheet.appendRow(["Date", "Course", "Score", "Par", "Weather", "Companions", "Memo", "Photos"]);
   sheet.getRange("A:A").setNumberFormat("@"); // 날짜가 Date 타입으로 자동 변환되지 않도록 텍스트 서식 고정
   return ss;
 }
@@ -228,7 +232,7 @@ function getRecordsSheet_(spreadsheetId) {
   var sheet = ss.getSheetByName("Records");
   if (!sheet) {
     sheet = ss.insertSheet("Records");
-    sheet.appendRow(["Date", "Course", "Score", "Par", "Weather", "Companions", "Memo", "Photo"]);
+    sheet.appendRow(["Date", "Course", "Score", "Par", "Weather", "Companions", "Memo", "Photos"]);
     sheet.getRange("A:A").setNumberFormat("@");
   }
   return sheet;

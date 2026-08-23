@@ -1,7 +1,7 @@
 {
-  "name": "골프 라운딩 대시보드",
+  "name": "골프 라운딩 추억 앨범",
   "short_name": "골프기록",
-  "description": "라운딩 기록, 스코어 추이, 통계를 관리하는 개인용 골프 대시보드",
+  "description": "라운딩 사진과 메모로 그날의 추억을 남기고, 스코어 통계도 함께 관리하는 개인용 골프 앨범",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>골프 라운딩 대시보드</title>
+<title>골프 라운딩 추억 앨범</title>
 
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
@@ -157,12 +157,23 @@
   #account-info .acc-phone { color: var(--text-secondary); font-size: 12px; }
 
   /* stat tiles */
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
   @media (max-width: 700px) { .stats { grid-template-columns: repeat(2, 1fr); } }
-  .stat-tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--card-shadow); }
-  .stat-tile .label { font-size: 12px; color: var(--text-secondary); }
-  .stat-tile .value { font-size: 26px; font-weight: 600; margin-top: 4px; }
-  .stat-tile .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .stat-tile { background: var(--page); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .stat-tile .label { font-size: 11px; color: var(--text-secondary); }
+  .stat-tile .value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+  .stat-tile .sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* collapsible stats/chart section */
+  details.stats-details { padding: 12px 16px; }
+  details.stats-details summary {
+    cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    list-style: none; display: flex; align-items: center; gap: 6px; user-select: none;
+  }
+  details.stats-details summary::-webkit-details-marker { display: none; }
+  details.stats-details summary::before { content: "▸"; font-size: 11px; transition: transform 0.12s; }
+  details.stats-details[open] summary::before { transform: rotate(90deg); }
+  details.stats-details .stats-details-body { margin-top: 14px; display: flex; flex-direction: column; gap: 14px; }
 
   /* chart */
   .legend { display: flex; gap: 16px; margin-bottom: 8px; }
@@ -178,29 +189,43 @@
   #chart-tooltip .t-date { color: var(--text-secondary); margin-bottom: 2px; }
   .chart-holder { position: relative; }
 
-  /* table */
-  .table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
-  thead th {
-    text-align: left; font-weight: 600; color: var(--text-secondary);
-    font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--baseline);
-    white-space: nowrap;
-  }
-  tbody td { padding: 9px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
-  tbody tr:hover td { background: color-mix(in srgb, var(--series-1) 6%, transparent); }
-  td.num, th.num { font-variant-numeric: tabular-nums; }
   .to-par-pos { color: var(--series-2); }
   .to-par-neg { color: var(--good); }
   .to-par-zero { color: var(--text-secondary); }
-  .memo-cell { color: var(--text-secondary); max-width: 220px; white-space: pre-wrap; }
   .del-btn {
     background: none; border: 1px solid var(--border); color: var(--text-muted);
     border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer;
   }
   .del-btn:hover { color: var(--series-2); border-color: var(--series-2); }
-  .empty-row td { text-align: center; color: var(--text-muted); padding: 28px 0; }
-  .thumb-link { display: inline-block; }
-  .thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); display: block; }
+
+  /* gallery */
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 16px; }
+  .gallery-card { cursor: pointer; }
+  .gallery-thumb {
+    position: relative; aspect-ratio: 1 / 1; border-radius: 12px; overflow: hidden;
+    background: var(--page); border: 1px solid var(--border);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .gallery-card:hover .gallery-thumb { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.14); }
+  .gallery-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gallery-placeholder {
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    font-size: 40px; color: var(--text-muted); opacity: 0.5;
+  }
+  .gallery-count-badge {
+    position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.55); color: #fff;
+    font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px;
+  }
+  .gallery-score-badge {
+    position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,0.55); color: #fff;
+    font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+  }
+  .gallery-score-badge.to-par-pos { color: #ffb38a; }
+  .gallery-score-badge.to-par-neg { color: #8ce28c; }
+  .gallery-info { padding: 8px 2px 0; }
+  .gallery-course { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+  .gallery-date { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+  .gallery-empty { grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 40px 0; font-size: 13px; }
 
   /* companions */
   .companion-row { display: flex; gap: 6px; margin-bottom: 6px; }
@@ -220,12 +245,20 @@
   .add-companion-btn:hover { color: var(--text-primary); border-color: var(--text-secondary); }
 
   /* photo upload */
-  .photo-preview-wrap { display: none; align-items: center; gap: 10px; margin-top: 8px; }
-  .photo-preview-wrap img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+  .photo-preview-wrap { display: none; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .photo-preview-item { position: relative; width: 60px; height: 60px; }
+  .photo-preview-item img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block;
+  }
+  .photo-preview-remove {
+    position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; line-height: 16px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 50%;
+    color: var(--text-muted); font-size: 12px; cursor: pointer; padding: 0;
+  }
+  .photo-preview-remove:hover { color: var(--series-2); border-color: var(--series-2); }
   .photo-status { font-size: 12px; color: var(--text-muted); margin-top: 4px; min-height: 14px; }
 
-  /* round row + modal */
-  tbody tr.round-row { cursor: pointer; }
+  /* round detail modal */
   .modal-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
     align-items: center; justify-content: center; z-index: 100; padding: 20px;
@@ -233,20 +266,23 @@
   .modal-overlay.active { display: flex; }
   .modal-box {
     background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
-    max-width: 560px; width: 100%; max-height: 90vh; overflow-y: auto;
-    padding: 24px; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+    max-width: 620px; width: 100%; max-height: 90vh; overflow-y: auto;
+    padding: 0 0 24px; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.35);
   }
   .modal-close {
-    position: absolute; top: 10px; right: 10px; background: none; border: none;
-    font-size: 22px; line-height: 1; color: var(--text-muted); cursor: pointer; padding: 6px;
+    position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.45); border: none;
+    width: 28px; height: 28px; border-radius: 50%;
+    font-size: 20px; line-height: 1; color: #fff; cursor: pointer; padding: 0; z-index: 2;
   }
-  .modal-close:hover { color: var(--text-primary); }
+  .modal-close:hover { background: rgba(0,0,0,0.65); }
+  .modal-body { padding: 18px 24px 0; }
   .modal-title { font-size: 18px; font-weight: 700; margin: 0 22px 4px 0; }
-  .modal-sub { color: var(--text-secondary); font-size: 13px; margin-bottom: 16px; }
-  .modal-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
-  .modal-stat { background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
-  .modal-stat .label { font-size: 11px; color: var(--text-secondary); }
-  .modal-stat .value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+  .modal-sub { color: var(--text-secondary); font-size: 13px; margin-bottom: 10px; }
+  .modal-score-line {
+    font-size: 13px; color: var(--text-secondary); background: var(--page);
+    border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px;
+    display: inline-flex; gap: 8px; margin-bottom: 16px;
+  }
   .modal-section { margin-bottom: 16px; }
   .modal-section h3 { font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; font-weight: 600; }
   .modal-companion-list { display: flex; flex-direction: column; gap: 4px; }
@@ -258,16 +294,44 @@
     white-space: pre-wrap; font-size: 13px; color: var(--text-primary);
     background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
   }
-  .modal-photo-link { display: block; }
-  .modal-photo { width: 100%; max-height: 480px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border); display: block; background: var(--page); }
+  .modal-delete-btn { margin-top: 4px; }
+
+  /* photo slide viewer */
+  .modal-slide-viewport {
+    position: relative; width: 100%; aspect-ratio: 4 / 3; background: var(--page);
+    border-radius: 12px 12px 0 0; overflow: hidden;
+  }
+  .modal-slide-link { display: block; width: 100%; height: 100%; }
+  .modal-slide-img { width: 100%; height: 100%; object-fit: contain; display: block; background: var(--page); }
+  .modal-slide-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+  .modal-slide-empty .gallery-placeholder { font-size: 52px; }
+  .modal-slide-empty-text { font-size: 13px; color: var(--text-muted); }
+  .modal-slide-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 32px; height: 32px; border-radius: 50%; border: none;
+    background: rgba(0,0,0,0.45); color: #fff; font-size: 18px; line-height: 1; cursor: pointer;
+  }
+  .modal-slide-nav:hover { background: rgba(0,0,0,0.65); }
+  .modal-slide-prev { left: 10px; }
+  .modal-slide-next { right: 10px; }
+  .modal-slide-counter {
+    position: absolute; right: 10px; bottom: 10px; background: rgba(0,0,0,0.5); color: #fff;
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  }
+  .modal-slide-dots { display: flex; justify-content: center; gap: 6px; padding: 10px 0 0; }
+  .modal-slide-dot {
+    width: 6px; height: 6px; border-radius: 50%; border: none; padding: 0;
+    background: var(--border); cursor: pointer;
+  }
+  .modal-slide-dot.active { background: var(--series-1); }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div>
-      <h1>나만의 골프라운딩 기록</h1>
-      <p id="intro-text">로그인하면 나만의 골프라운딩 기록을 저장할 수 있습니다.</p>
+      <h1>나의 골프 라운딩 추억 앨범</h1>
+      <p id="intro-text">로그인하면 라운딩 사진과 함께 그날의 추억을 기록할 수 있습니다.</p>
     </div>
     <div class="header-actions">
       <button id="logout-btn" type="button" class="icon-btn" title="로그아웃" aria-label="로그아웃" style="display:none;">
@@ -322,7 +386,7 @@
       </div>
 
       <div class="card">
-      <h2>새 라운딩 기록</h2>
+      <h2>새 추억 남기기</h2>
       <form id="round-form">
         <div class="field">
           <label for="f-date">날짜</label>
@@ -365,12 +429,9 @@
           <textarea id="f-memo" placeholder="특이사항, 코스 컨디션 등"></textarea>
         </div>
         <div class="field">
-          <label for="f-photo">스코어카드 사진</label>
-          <input type="file" id="f-photo" accept="image/*">
-          <div class="photo-preview-wrap" id="photo-preview-wrap">
-            <img id="photo-preview" alt="미리보기">
-            <button type="button" id="photo-remove" class="del-btn">사진 제거</button>
-          </div>
+          <label for="f-photo">라운딩 사진 (최대 6장)</label>
+          <input type="file" id="f-photo" accept="image/*" multiple>
+          <div class="photo-preview-wrap" id="photo-preview-wrap"></div>
           <div class="photo-status" id="photo-status"></div>
         </div>
         <div id="form-error"></div>
@@ -380,40 +441,25 @@
     </div>
 
     <div class="right-col">
-      <div class="stats" id="stats"></div>
-
-      <div class="card">
-        <h2>스코어 추이</h2>
-        <div class="legend" id="chart-legend"></div>
-        <div class="chart-holder">
-          <div id="chart-target"></div>
-          <div id="chart-tooltip"></div>
+      <details class="card stats-details">
+        <summary>스코어 통계 &amp; 추이 보기</summary>
+        <div class="stats-details-body">
+          <div class="stats" id="stats"></div>
+          <div>
+            <div class="legend" id="chart-legend"></div>
+            <div class="chart-holder">
+              <div id="chart-target"></div>
+              <div id="chart-tooltip"></div>
+            </div>
+          </div>
         </div>
-      </div>
+      </details>
     </div>
   </div>
 
   <div class="card" style="margin-top:16px;">
-    <h2>라운딩 기록</h2>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>날짜</th>
-            <th>골프장</th>
-            <th class="num">스코어</th>
-            <th class="num">파</th>
-            <th class="num">오버파</th>
-            <th>날씨</th>
-            <th>동반자</th>
-            <th>메모</th>
-            <th>사진</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="table-body"></tbody>
-      </table>
-    </div>
+    <h2>📸 라운딩 추억 앨범</h2>
+    <div class="gallery" id="gallery"></div>
   </div>
 </div>
 
@@ -650,7 +696,7 @@
           date: r.date, course: r.course,
           score: Number(r.score), par: Number(r.par),
           weather: r.weather || "", companions: r.companions || "", memo: r.memo || "",
-          photo: r.photo || ""
+          photos: Array.isArray(r.photos) ? r.photos : (r.photo ? [r.photo] : [])
         };
       });
       setAuthStatus("로그인됨 · 마지막 동기화 " + nowTime(), "ok");
@@ -680,13 +726,6 @@
       if (idx === -1) return { name: s, score: "" };
       return { name: s.slice(0, idx).trim(), score: s.slice(idx + 1).trim() };
     });
-  }
-  function formatCompanions(str) {
-    var list = decodeCompanions(str);
-    if (!list.length) return "-";
-    return list.map(function (c) {
-      return escapeHtml(c.name) + (c.score ? " " + escapeHtml(c.score) : "");
-    }).join(" · ");
   }
 
   /* ---------- companion row UI ---------- */
@@ -718,10 +757,10 @@
   addCompanionRow();
 
   /* ---------- photo upload ---------- */
-  var pendingPhoto = null; // { dataUrl, mimeType }
+  var MAX_PHOTOS = 6;
+  var pendingPhotos = []; // [{ dataUrl, mimeType }]
   var photoInput = document.getElementById("f-photo");
   var photoPreviewWrap = document.getElementById("photo-preview-wrap");
-  var photoPreviewImg = document.getElementById("photo-preview");
   var photoStatus = document.getElementById("photo-status");
 
   // Apps Script doPost는 사진(Drive 업로드)이 딸린 요청일수록 처리 시간이 늘어나고,
@@ -761,25 +800,59 @@
     });
   }
 
+  function renderPhotoPreviews() {
+    if (!pendingPhotos.length) {
+      photoPreviewWrap.style.display = "none";
+      photoPreviewWrap.innerHTML = "";
+      return;
+    }
+    photoPreviewWrap.style.display = "flex";
+    photoPreviewWrap.innerHTML = pendingPhotos.map(function (p, i) {
+      return '<div class="photo-preview-item"><img src="' + p.dataUrl + '" alt="미리보기 ' + (i + 1) + '">' +
+        '<button type="button" class="photo-preview-remove" data-idx="' + i + '" aria-label="사진 제거">×</button></div>';
+    }).join("");
+    Array.prototype.forEach.call(photoPreviewWrap.querySelectorAll(".photo-preview-remove"), function (btn) {
+      btn.addEventListener("click", function () {
+        pendingPhotos.splice(parseInt(btn.getAttribute("data-idx"), 10), 1);
+        renderPhotoPreviews();
+        photoStatus.textContent = pendingPhotos.length ? (pendingPhotos.length + "장 선택됨") : "";
+      });
+    });
+  }
+
   photoInput.addEventListener("change", function () {
-    var file = photoInput.files && photoInput.files[0];
-    if (!file) return;
-    photoStatus.textContent = "사진 처리 중...";
-    resizeImage(file, PHOTO_MAX_DIM, 0.75).then(function (result) {
-      pendingPhoto = result;
-      photoPreviewImg.src = result.dataUrl;
-      photoPreviewWrap.style.display = "flex";
-      photoStatus.textContent = "업로드 시 몇 초 정도 걸릴 수 있어요.";
+    var files = Array.prototype.slice.call(photoInput.files || []);
+    if (!files.length) return;
+
+    var remaining = MAX_PHOTOS - pendingPhotos.length;
+    if (remaining <= 0) {
+      photoStatus.textContent = "최대 " + MAX_PHOTOS + "장까지 첨부할 수 있어요.";
+      photoInput.value = "";
+      return;
+    }
+    var toProcess = files.slice(0, remaining);
+    var truncated = files.length > toProcess.length;
+    photoStatus.textContent = truncated
+      ? "최대 " + MAX_PHOTOS + "장까지만 추가돼요. 일부 사진은 제외됐어요."
+      : "사진 처리 중...";
+
+    Promise.all(toProcess.map(function (f) { return resizeImage(f, PHOTO_MAX_DIM, 0.75); })).then(function (results) {
+      pendingPhotos = pendingPhotos.concat(results);
+      renderPhotoPreviews();
+      if (!truncated) {
+        photoStatus.textContent = pendingPhotos.length + "장 선택됨 · 업로드 시 몇 초 정도 걸릴 수 있어요.";
+      }
     }).catch(function () {
-      pendingPhoto = null;
       photoStatus.textContent = "사진을 처리하지 못했어요. 다른 파일을 시도해주세요.";
+    }).finally(function () {
+      photoInput.value = "";
     });
   });
-  document.getElementById("photo-remove").addEventListener("click", resetPhotoInput);
-  function resetPhotoInput() {
-    pendingPhoto = null;
+
+  function resetPhotoInputs() {
+    pendingPhotos = [];
     photoInput.value = "";
-    photoPreviewWrap.style.display = "none";
+    renderPhotoPreviews();
     photoStatus.textContent = "";
   }
 
@@ -823,22 +896,24 @@
       action: "add",
       record: { date: date, course: course, score: score, par: par, weather: weather, companions: companions, memo: memo }
     };
-    if (pendingPhoto) {
-      var safeName = (course || "scorecard").replace(/[^a-zA-Z0-9가-힣_-]/g, "_");
-      payload.photo = {
-        data: pendingPhoto.dataUrl.split(",")[1],
-        mimeType: pendingPhoto.mimeType,
-        filename: safeName + "_" + date + ".jpg"
-      };
+    if (pendingPhotos.length) {
+      var safeName = (course || "round").replace(/[^a-zA-Z0-9가-힣_-]/g, "_");
+      payload.photos = pendingPhotos.map(function (p, i) {
+        return {
+          data: p.dataUrl.split(",")[1],
+          mimeType: p.mimeType,
+          filename: safeName + "_" + date + "_" + (i + 1) + ".jpg"
+        };
+      });
     }
 
     submitBtn.disabled = true;
-    submitBtn.textContent = pendingPhoto ? "업로드 중..." : "저장 중...";
+    submitBtn.textContent = pendingPhotos.length ? "업로드 중..." : "저장 중...";
     apiPost(payload).then(function (res) {
       if (!res.ok) throw new Error(res.error || "unknown_error");
       form.reset();
       resetCompanionRows();
-      resetPhotoInput();
+      resetPhotoInputs();
       return fetchRounds();
     }).catch(function (err) {
       if (err.code === "BAD_RESPONSE") {
@@ -848,7 +923,7 @@
         errorBox.textContent = "서버 응답을 읽지 못했어요. 실제 저장 여부를 확인하기 위해 목록을 새로고침할게요...";
         form.reset();
         resetCompanionRows();
-        resetPhotoInput();
+        resetPhotoInputs();
         fetchRounds().then(function () {
           errorBox.textContent = "목록을 새로고침했어요. 방금 입력한 기록이 보이면 정상 저장된 거예요. 안 보이면 사진을 좀 더 작게 줄이거나 다시 시도해주세요.";
         });
@@ -930,57 +1005,44 @@
       '<div class="stat-tile"><div class="label">평균 오버파</div><div class="value ' + toParClass(s.avgToPar) + '">' + fmtToPar(s.avgToPar) + '</div></div>';
   }
 
-  /* ---------- table ---------- */
+  /* ---------- gallery ---------- */
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
 
-  function renderTable() {
-    var body = document.getElementById("table-body");
+  function renderGallery() {
+    var galleryEl = document.getElementById("gallery");
     if (rounds.length === 0) {
       var msg = sessionReady()
-        ? "아직 기록된 라운딩이 없어요. 왼쪽 폼에서 첫 기록을 추가해보세요."
-        : "로그인하면 기록이 표시돼요.";
-      body.innerHTML = '<tr class="empty-row"><td colspan="10">' + msg + '</td></tr>';
+        ? "아직 기록된 추억이 없어요. 왼쪽 폼에서 첫 라운딩을 남겨보세요."
+        : "로그인하면 라운딩 추억 앨범이 표시돼요.";
+      galleryEl.innerHTML = '<div class="gallery-empty">' + msg + '</div>';
       return;
     }
     var sorted = rounds.slice().sort(byDateDesc);
-    body.innerHTML = sorted.map(function (r) {
+    galleryEl.innerHTML = sorted.map(function (r) {
       var toPar = r.score - r.par;
-      var photoCell = "-";
-      if (r.photo) {
-        var thumb = driveThumbUrl(r.photo);
-        photoCell = '<a class="thumb-link" href="' + escapeHtml(r.photo) + '" target="_blank" rel="noopener">' +
-          (thumb ? '<img class="thumb" src="' + escapeHtml(thumb) + '" alt="스코어카드 사진">' : "사진 보기") +
-          "</a>";
-      }
-      return "<tr class=\"round-row\" data-id=\"" + r.id + "\">" +
-        "<td>" + escapeHtml(r.date) + "</td>" +
-        "<td>" + escapeHtml(r.course) + "</td>" +
-        "<td class=\"num\">" + r.score + "</td>" +
-        "<td class=\"num\">" + r.par + "</td>" +
-        "<td class=\"num " + toParClass(toPar) + "\">" + fmtToPar(toPar) + "</td>" +
-        "<td>" + escapeHtml(r.weather || "-") + "</td>" +
-        "<td>" + formatCompanions(r.companions) + "</td>" +
-        "<td class=\"memo-cell\">" + escapeHtml(r.memo || "-") + "</td>" +
-        "<td>" + photoCell + "</td>" +
-        "<td><button class=\"del-btn\" data-id=\"" + r.id + "\">삭제</button></td>" +
-        "</tr>";
+      var cover = r.photos && r.photos[0] ? driveThumbUrl(r.photos[0], 480) || r.photos[0] : null;
+      var thumbHtml = cover
+        ? '<img src="' + escapeHtml(cover) + '" alt="' + escapeHtml(r.course) + ' 사진" loading="lazy">'
+        : '<div class="gallery-placeholder">⛳</div>';
+      var countBadge = (r.photos && r.photos.length > 1)
+        ? '<span class="gallery-count-badge">+' + (r.photos.length - 1) + '</span>' : "";
+      return '<div class="gallery-card" data-id="' + r.id + '">' +
+        '<div class="gallery-thumb">' + thumbHtml + countBadge +
+          '<span class="gallery-score-badge ' + toParClass(toPar) + '">' + r.score + '</span>' +
+        '</div>' +
+        '<div class="gallery-info">' +
+          '<div class="gallery-course">' + escapeHtml(r.course) + '</div>' +
+          '<div class="gallery-date">' + escapeHtml(r.date) + '</div>' +
+        '</div>' +
+      '</div>';
     }).join("");
 
-    Array.prototype.forEach.call(body.querySelectorAll(".round-row"), function (row) {
-      row.addEventListener("click", function () { openRoundModal(row.getAttribute("data-id")); });
-    });
-    Array.prototype.forEach.call(body.querySelectorAll(".del-btn"), function (btn) {
-      btn.addEventListener("click", function (e) {
-        e.stopPropagation();
-        deleteRound(btn.getAttribute("data-id"));
-      });
-    });
-    Array.prototype.forEach.call(body.querySelectorAll(".thumb-link"), function (link) {
-      link.addEventListener("click", function (e) { e.stopPropagation(); });
+    Array.prototype.forEach.call(galleryEl.querySelectorAll(".gallery-card"), function (card) {
+      card.addEventListener("click", function () { openRoundModal(card.getAttribute("data-id")); });
     });
   }
 
@@ -988,6 +1050,50 @@
   var modalOverlay = document.getElementById("round-modal-overlay");
   var modalContent = document.getElementById("modal-content");
   var modalCloseBtn = document.getElementById("modal-close-btn");
+  var modalPhotos = [];
+  var modalSlideIndex = 0;
+
+  function buildSlideHtml(photos) {
+    if (!photos.length) {
+      return '<div class="modal-slide-viewport modal-slide-empty">' +
+        '<div class="gallery-placeholder">⛳</div>' +
+        '<div class="modal-slide-empty-text">등록된 사진이 없어요</div>' +
+      '</div>';
+    }
+    var first = driveThumbUrl(photos[0], 1200) || photos[0];
+    var navHtml = photos.length > 1
+      ? '<button type="button" class="modal-slide-nav modal-slide-prev" aria-label="이전 사진">‹</button>' +
+        '<button type="button" class="modal-slide-nav modal-slide-next" aria-label="다음 사진">›</button>' +
+        '<div class="modal-slide-counter">1 / ' + photos.length + '</div>'
+      : "";
+    var dotsHtml = photos.length > 1
+      ? '<div class="modal-slide-dots">' + photos.map(function (_, i) {
+          return '<button type="button" class="modal-slide-dot' + (i === 0 ? " active" : "") +
+            '" data-idx="' + i + '" aria-label="' + (i + 1) + '번째 사진"></button>';
+        }).join("") + '</div>'
+      : "";
+    return '<div class="modal-slide-viewport">' +
+        '<a class="modal-slide-link" href="' + escapeHtml(photos[0]) + '" target="_blank" rel="noopener">' +
+          '<img class="modal-slide-img" src="' + escapeHtml(first) + '" alt="라운딩 사진">' +
+        '</a>' + navHtml +
+      '</div>' + dotsHtml;
+  }
+
+  function setModalSlide(idx) {
+    if (!modalPhotos.length) return;
+    modalSlideIndex = (idx + modalPhotos.length) % modalPhotos.length;
+    var url = modalPhotos[modalSlideIndex];
+    var big = driveThumbUrl(url, 1200) || url;
+    var imgEl = modalContent.querySelector(".modal-slide-img");
+    var linkEl = modalContent.querySelector(".modal-slide-link");
+    var counterEl = modalContent.querySelector(".modal-slide-counter");
+    if (imgEl) imgEl.src = big;
+    if (linkEl) linkEl.href = url;
+    if (counterEl) counterEl.textContent = (modalSlideIndex + 1) + " / " + modalPhotos.length;
+    Array.prototype.forEach.call(modalContent.querySelectorAll(".modal-slide-dot"), function (dot, i) {
+      dot.classList.toggle("active", i === modalSlideIndex);
+    });
+  }
 
   function openRoundModal(id) {
     var rowId = parseInt(id, 10);
@@ -1003,25 +1109,32 @@
         }).join("") + '</div>'
       : '<div class="modal-memo">동반자 없음</div>';
 
-    var photoHtml = "";
-    if (r.photo) {
-      var big = driveThumbUrl(r.photo, 1200);
-      photoHtml = '<div class="modal-section"><h3>스코어카드 사진</h3>' +
-        '<a class="modal-photo-link" href="' + escapeHtml(r.photo) + '" target="_blank" rel="noopener">' +
-        '<img class="modal-photo" src="' + escapeHtml(big || r.photo) + '" alt="스코어카드 사진"></a></div>';
-    }
+    modalPhotos = r.photos || [];
+    modalSlideIndex = 0;
 
     modalContent.innerHTML =
-      '<div class="modal-title">' + escapeHtml(r.date) + ' · ' + escapeHtml(r.course) + '</div>' +
-      '<div class="modal-sub">날씨: ' + escapeHtml(r.weather || "정보 없음") + '</div>' +
-      '<div class="modal-stats-grid">' +
-        '<div class="modal-stat"><div class="label">스코어</div><div class="value">' + r.score + '</div></div>' +
-        '<div class="modal-stat"><div class="label">파</div><div class="value">' + r.par + '</div></div>' +
-        '<div class="modal-stat"><div class="label">오버파</div><div class="value ' + toParClass(toPar) + '">' + fmtToPar(toPar) + '</div></div>' +
-      '</div>' +
-      '<div class="modal-section"><h3>동반자</h3>' + companionsHtml + '</div>' +
-      '<div class="modal-section"><h3>메모</h3><div class="modal-memo">' + escapeHtml(r.memo || "메모 없음") + '</div></div>' +
-      photoHtml;
+      buildSlideHtml(modalPhotos) +
+      '<div class="modal-body">' +
+        '<div class="modal-title">' + escapeHtml(r.date) + ' · ' + escapeHtml(r.course) + '</div>' +
+        '<div class="modal-sub">날씨: ' + escapeHtml(r.weather || "정보 없음") + '</div>' +
+        '<div class="modal-score-line">스코어 ' + r.score + ' · 파 ' + r.par + ' · <span class="' +
+          toParClass(toPar) + '">' + fmtToPar(toPar) + '</span></div>' +
+        '<div class="modal-section"><h3>동반자</h3>' + companionsHtml + '</div>' +
+        '<div class="modal-section"><h3>메모</h3><div class="modal-memo">' + escapeHtml(r.memo || "메모 없음") + '</div></div>' +
+        '<button type="button" class="del-btn modal-delete-btn" id="modal-delete-btn">이 기록 삭제</button>' +
+      '</div>';
+
+    if (modalPhotos.length > 1) {
+      modalContent.querySelector(".modal-slide-prev").addEventListener("click", function () { setModalSlide(modalSlideIndex - 1); });
+      modalContent.querySelector(".modal-slide-next").addEventListener("click", function () { setModalSlide(modalSlideIndex + 1); });
+      Array.prototype.forEach.call(modalContent.querySelectorAll(".modal-slide-dot"), function (dot) {
+        dot.addEventListener("click", function () { setModalSlide(parseInt(dot.getAttribute("data-idx"), 10)); });
+      });
+    }
+    modalContent.querySelector("#modal-delete-btn").addEventListener("click", function () {
+      closeModal();
+      deleteRound(r.id);
+    });
 
     modalOverlay.classList.add("active");
   }
@@ -1035,7 +1148,10 @@
     if (e.target === modalOverlay) closeModal();
   });
   document.addEventListener("keydown", function (e) {
+    if (!modalOverlay.classList.contains("active")) return;
     if (e.key === "Escape") closeModal();
+    else if (e.key === "ArrowLeft" && modalPhotos.length > 1) setModalSlide(modalSlideIndex - 1);
+    else if (e.key === "ArrowRight" && modalPhotos.length > 1) setModalSlide(modalSlideIndex + 1);
   });
 
   /* ---------- chart ---------- */
@@ -1231,7 +1347,7 @@
   /* ---------- render all ---------- */
   function render() {
     renderStats();
-    renderTable();
+    renderGallery();
     renderLegend();
     renderChart();
   }

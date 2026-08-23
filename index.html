@@ -309,7 +309,6 @@
     position: relative; width: 100%; aspect-ratio: 4 / 3; background: var(--page);
     border-radius: 12px 12px 0 0; overflow: hidden;
   }
-  .modal-slide-link { display: block; width: 100%; height: 100%; }
   .modal-slide-img { width: 100%; height: 100%; object-fit: contain; display: block; background: var(--page); }
   .modal-slide-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
   .modal-slide-empty .gallery-placeholder { font-size: 52px; }
@@ -890,9 +889,11 @@
     photoStatus.textContent = "";
   }
 
+  // Drive 공유 링크(.../file/d/파일ID/view 등)에서 파일ID만 뽑아, drive.google.com 뷰어 페이지로
+  // 이동시키지 않고 이미지 자체를 바로 표시할 수 있는 lh3.googleusercontent.com URL로 변환한다.
   function driveThumbUrl(url, size) {
     var m = /\/d\/([a-zA-Z0-9_-]+)/.exec(url || "");
-    return m ? ("https://drive.google.com/thumbnail?id=" + m[1] + "&sz=w" + (size || 160)) : null;
+    return m ? ("https://lh3.googleusercontent.com/d/" + m[1] + "=s" + (size || 1600)) : null;
   }
 
   /* ---------- form (신규 추가 / 수정 공용) ---------- */
@@ -1164,9 +1165,8 @@
         }).join("") + '</div>'
       : "";
     return '<div class="modal-slide-viewport">' +
-        '<a class="modal-slide-link" href="' + escapeHtml(photos[0]) + '" target="_blank" rel="noopener">' +
-          '<img class="modal-slide-img" src="' + escapeHtml(first) + '" alt="라운딩 사진">' +
-        '</a>' + navHtml +
+        '<img class="modal-slide-img" src="' + escapeHtml(first) + '" alt="라운딩 사진">' +
+        navHtml +
       '</div>' + dotsHtml;
   }
 
@@ -1176,10 +1176,8 @@
     var url = modalPhotos[modalSlideIndex];
     var big = driveThumbUrl(url, 1200) || url;
     var imgEl = modalContent.querySelector(".modal-slide-img");
-    var linkEl = modalContent.querySelector(".modal-slide-link");
     var counterEl = modalContent.querySelector(".modal-slide-counter");
     if (imgEl) imgEl.src = big;
-    if (linkEl) linkEl.href = url;
     if (counterEl) counterEl.textContent = (modalSlideIndex + 1) + " / " + modalPhotos.length;
     Array.prototype.forEach.call(modalContent.querySelectorAll(".modal-slide-dot"), function (dot, i) {
       dot.classList.toggle("active", i === modalSlideIndex);

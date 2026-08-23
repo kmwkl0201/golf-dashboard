@@ -234,6 +234,16 @@
   .gallery-date { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
   .gallery-empty { grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 40px 0; font-size: 13px; }
 
+  .gallery-pagination { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 18px; flex-wrap: wrap; }
+  .page-btn {
+    min-width: 28px; height: 28px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--page); color: var(--text-secondary); font-size: 12px; cursor: pointer;
+  }
+  .page-btn:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+  .page-btn.active { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+  .page-btn:disabled { opacity: 0.4; cursor: default; }
+  .page-ellipsis { color: var(--text-muted); font-size: 12px; padding: 0 2px; }
+
   /* companions */
   .companion-row { display: flex; gap: 6px; margin-bottom: 6px; }
   .companion-row .comp-name { flex: 2; }
@@ -477,9 +487,10 @@
     </div>
   </div>
 
-  <div class="card" style="margin-top:16px;">
+  <div class="card" style="margin-top:16px;" id="gallery-card">
     <h2>📸 라운딩 추억 앨범</h2>
     <div class="gallery" id="gallery"></div>
+    <div class="gallery-pagination" id="gallery-pagination"></div>
   </div>
 </div>
 
@@ -1114,17 +1125,29 @@
     });
   }
 
+  var GALLERY_PAGE_SIZE = 5;
+  var galleryPage = 1;
+
   function renderGallery() {
     var galleryEl = document.getElementById("gallery");
+    var paginationEl = document.getElementById("gallery-pagination");
     if (rounds.length === 0) {
       var msg = sessionReady()
         ? "아직 기록된 추억이 없어요. 왼쪽 폼에서 첫 라운딩을 남겨보세요."
         : "로그인하면 라운딩 추억 앨범이 표시돼요.";
       galleryEl.innerHTML = '<div class="gallery-empty">' + msg + '</div>';
+      paginationEl.innerHTML = "";
+      galleryPage = 1;
       return;
     }
     var sorted = rounds.slice().sort(byDateDesc);
-    galleryEl.innerHTML = sorted.map(function (r) {
+    var totalPages = Math.max(1, Math.ceil(sorted.length / GALLERY_PAGE_SIZE));
+    if (galleryPage > totalPages) galleryPage = totalPages;
+    if (galleryPage < 1) galleryPage = 1;
+    var start = (galleryPage - 1) * GALLERY_PAGE_SIZE;
+    var pageItems = sorted.slice(start, start + GALLERY_PAGE_SIZE);
+
+    galleryEl.innerHTML = pageItems.map(function (r) {
       var toPar = r.score - r.par;
       var cover = r.photos && r.photos[0] ? driveThumbUrl(r.photos[0], 480) || r.photos[0] : null;
       var thumbHtml = cover
@@ -1145,6 +1168,50 @@
 
     Array.prototype.forEach.call(galleryEl.querySelectorAll(".gallery-card"), function (card) {
       card.addEventListener("click", function () { openRoundModal(card.getAttribute("data-id")); });
+    });
+
+    renderGalleryPagination(totalPages);
+  }
+
+  function goToGalleryPage(page) {
+    galleryPage = page;
+    renderGallery();
+    var galleryCard = document.getElementById("gallery-card");
+    if (galleryCard) galleryCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function renderGalleryPagination(totalPages) {
+    var el = document.getElementById("gallery-pagination");
+    if (totalPages <= 1) {
+      el.innerHTML = "";
+      return;
+    }
+
+    function pageBtnHtml(label, page, opts) {
+      opts = opts || {};
+      var cls = "page-btn" + (opts.active ? " active" : "");
+      return '<button type="button" class="' + cls + '" data-page="' + page + '"' +
+        (opts.disabled ? " disabled" : "") + '>' + label + '</button>';
+    }
+
+    var html = pageBtnHtml("‹", galleryPage - 1, { disabled: galleryPage === 1 });
+
+    var pagesToShow = [];
+    for (var p = 1; p <= totalPages; p++) {
+      if (p === 1 || p === totalPages || Math.abs(p - galleryPage) <= 1) pagesToShow.push(p);
+    }
+    var lastShown = 0;
+    pagesToShow.forEach(function (p) {
+      if (lastShown && p - lastShown > 1) html += '<span class="page-ellipsis">…</span>';
+      html += pageBtnHtml(String(p), p, { active: p === galleryPage });
+      lastShown = p;
+    });
+
+    html += pageBtnHtml("›", galleryPage + 1, { disabled: galleryPage === totalPages });
+
+    el.innerHTML = html;
+    Array.prototype.forEach.call(el.querySelectorAll(".page-btn:not(:disabled)"), function (btn) {
+      btn.addEventListener("click", function () { goToGalleryPage(parseInt(btn.getAttribute("data-page"), 10)); });
     });
   }
 

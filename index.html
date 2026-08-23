@@ -338,7 +338,7 @@
     position: relative; width: 100%; aspect-ratio: 4 / 3; background: var(--page);
     border-radius: 12px 12px 0 0; overflow: hidden;
   }
-  .modal-slide-img { width: 100%; height: 100%; object-fit: contain; display: block; background: var(--page); }
+  .modal-slide-img { width: 100%; height: 100%; object-fit: contain; display: block; background: var(--page); cursor: zoom-in; }
   .modal-slide-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
   .modal-slide-empty .gallery-placeholder { font-size: 52px; }
   .modal-slide-empty-text { font-size: 13px; color: var(--text-muted); }
@@ -370,6 +370,44 @@
     background: var(--border); cursor: pointer;
   }
   .modal-slide-dot.active { background: var(--series-1); }
+
+  /* fullscreen photo viewer */
+  .fullscreen-overlay {
+    display: none; position: fixed; inset: 0; background: #000; z-index: 200;
+    align-items: center; justify-content: center;
+  }
+  .fullscreen-overlay.active { display: flex; }
+  .fullscreen-img-wrap {
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    touch-action: pinch-zoom;
+  }
+  .fullscreen-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+  .fullscreen-close {
+    position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; border-radius: 50%;
+    border: none; background: rgba(255,255,255,0.15); color: #fff; font-size: 22px; line-height: 1;
+    cursor: pointer; z-index: 2;
+  }
+  .fullscreen-close:hover { background: rgba(255,255,255,0.28); }
+  .fullscreen-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 44px; height: 44px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,0.15); color: #fff; font-size: 24px; line-height: 1; cursor: pointer; z-index: 2;
+  }
+  .fullscreen-nav:hover { background: rgba(255,255,255,0.28); }
+  .fullscreen-prev { left: 14px; }
+  .fullscreen-next { right: 14px; }
+  .fullscreen-download {
+    position: absolute; right: 14px; bottom: 14px; width: 40px; height: 40px; border-radius: 50%;
+    border: none; background: rgba(255,255,255,0.15); color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; z-index: 2;
+  }
+  .fullscreen-download:hover { background: rgba(255,255,255,0.28); }
+  .fullscreen-download svg { width: 18px; height: 18px; }
+  .fullscreen-counter {
+    position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+    background: rgba(255,255,255,0.15); color: #fff; font-size: 12px; padding: 3px 10px; border-radius: 999px;
+    z-index: 2;
+  }
 </style>
 </head>
 <body>
@@ -546,6 +584,19 @@
     <button type="button" class="modal-close" id="modal-close-btn" aria-label="닫기">&times;</button>
     <div id="modal-content"></div>
   </div>
+</div>
+
+<div class="fullscreen-overlay" id="fullscreen-overlay">
+  <button type="button" class="fullscreen-close" id="fullscreen-close-btn" aria-label="닫기">&times;</button>
+  <button type="button" class="fullscreen-nav fullscreen-prev" id="fullscreen-prev-btn" aria-label="이전 사진">‹</button>
+  <button type="button" class="fullscreen-nav fullscreen-next" id="fullscreen-next-btn" aria-label="다음 사진">›</button>
+  <div class="fullscreen-img-wrap" id="fullscreen-img-wrap">
+    <img class="fullscreen-img" id="fullscreen-img" alt="라운딩 사진">
+  </div>
+  <button type="button" class="fullscreen-download" id="fullscreen-download-btn" aria-label="사진 다운로드" title="다운로드">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+  </button>
+  <div class="fullscreen-counter" id="fullscreen-counter"></div>
 </div>
 
 <script>
@@ -1408,7 +1459,59 @@
     Array.prototype.forEach.call(modalContent.querySelectorAll(".modal-slide-dot"), function (dot, i) {
       dot.classList.toggle("active", i === modalSlideIndex);
     });
+    updateFullscreenView();
   }
+
+  /* ---------- 사진 풀스크린 보기 ---------- */
+  var fullscreenOverlay = document.getElementById("fullscreen-overlay");
+  var fullscreenImg = document.getElementById("fullscreen-img");
+  var fullscreenCloseBtn = document.getElementById("fullscreen-close-btn");
+  var fullscreenPrevBtn = document.getElementById("fullscreen-prev-btn");
+  var fullscreenNextBtn = document.getElementById("fullscreen-next-btn");
+  var fullscreenDownloadBtn = document.getElementById("fullscreen-download-btn");
+  var fullscreenCounter = document.getElementById("fullscreen-counter");
+  var fullscreenImgWrap = document.getElementById("fullscreen-img-wrap");
+
+  function updateFullscreenView() {
+    if (!fullscreenOverlay.classList.contains("active") || !modalPhotos.length) return;
+    var url = modalPhotos[modalSlideIndex];
+    fullscreenImg.src = driveThumbUrl(url, 2000) || url;
+    var multi = modalPhotos.length > 1;
+    fullscreenCounter.textContent = multi ? (modalSlideIndex + 1) + " / " + modalPhotos.length : "";
+    fullscreenCounter.style.display = multi ? "" : "none";
+    fullscreenPrevBtn.style.display = multi ? "" : "none";
+    fullscreenNextBtn.style.display = multi ? "" : "none";
+  }
+
+  function openFullscreen() {
+    if (!modalPhotos.length) return;
+    fullscreenOverlay.classList.add("active");
+    updateFullscreenView();
+  }
+  function closeFullscreen() {
+    fullscreenOverlay.classList.remove("active");
+  }
+
+  fullscreenCloseBtn.addEventListener("click", closeFullscreen);
+  fullscreenOverlay.addEventListener("click", function (e) {
+    if (e.target === fullscreenOverlay || e.target === fullscreenImgWrap) closeFullscreen();
+  });
+  fullscreenPrevBtn.addEventListener("click", function (e) { e.stopPropagation(); setModalSlide(modalSlideIndex - 1); });
+  fullscreenNextBtn.addEventListener("click", function (e) { e.stopPropagation(); setModalSlide(modalSlideIndex + 1); });
+
+  // 한 손가락 좌우 스와이프로 사진 넘기기. 핀치 줌(두 손가락)은 여기서 관여하지 않고
+  // 브라우저 기본 확대/축소(뷰포트 meta에 user-scalable 제한이 없어 이미 가능)에 맡긴다.
+  var fsTouchStartX = null;
+  fullscreenImgWrap.addEventListener("touchstart", function (e) {
+    fsTouchStartX = (e.touches.length === 1) ? e.touches[0].clientX : null;
+  }, { passive: true });
+  fullscreenImgWrap.addEventListener("touchend", function (e) {
+    if (fsTouchStartX === null || modalPhotos.length < 2) { fsTouchStartX = null; return; }
+    var dx = e.changedTouches[0].clientX - fsTouchStartX;
+    fsTouchStartX = null;
+    if (Math.abs(dx) < 40) return;
+    setModalSlide(modalSlideIndex + (dx < 0 ? 1 : -1));
+  }, { passive: true });
 
   function buildPhotoFilename(r, idx, total) {
     var safeCourse = (r.course || "round").replace(/[^a-zA-Z0-9가-힣_-]/g, "_");
@@ -1482,6 +1585,13 @@
     if (downloadBtn) {
       downloadBtn.addEventListener("click", function () { downloadCurrentPhoto(r); });
     }
+    var slideImg = modalContent.querySelector(".modal-slide-img");
+    if (slideImg) {
+      slideImg.addEventListener("click", openFullscreen);
+    }
+    // 풀스크린 다운로드 버튼은 모달과 별개로 항상 존재하는 엘리먼트라, 매번 addEventListener로
+    // 쌓이지 않도록 onclick 대입으로 이번 라운딩의 다운로드 로직으로 덮어쓴다.
+    fullscreenDownloadBtn.onclick = function () { downloadCurrentPhoto(r); };
     modalContent.querySelector("#modal-edit-btn").addEventListener("click", function () {
       closeModal();
       startEditRound(r);
@@ -1495,6 +1605,7 @@
   }
 
   function closeModal() {
+    closeFullscreen();
     modalOverlay.classList.remove("active");
   }
 
@@ -1503,6 +1614,12 @@
     if (e.target === modalOverlay) closeModal();
   });
   document.addEventListener("keydown", function (e) {
+    if (fullscreenOverlay.classList.contains("active")) {
+      if (e.key === "Escape") closeFullscreen();
+      else if (e.key === "ArrowLeft" && modalPhotos.length > 1) setModalSlide(modalSlideIndex - 1);
+      else if (e.key === "ArrowRight" && modalPhotos.length > 1) setModalSlide(modalSlideIndex + 1);
+      return;
+    }
     if (!modalOverlay.classList.contains("active")) return;
     if (e.key === "Escape") closeModal();
     else if (e.key === "ArrowLeft" && modalPhotos.length > 1) setModalSlide(modalSlideIndex - 1);

@@ -321,10 +321,20 @@
   .modal-slide-nav:hover { background: rgba(0,0,0,0.65); }
   .modal-slide-prev { left: 10px; }
   .modal-slide-next { right: 10px; }
+  .modal-slide-bottom-bar {
+    position: absolute; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 8px;
+  }
   .modal-slide-counter {
-    position: absolute; right: 10px; bottom: 10px; background: rgba(0,0,0,0.5); color: #fff;
+    background: rgba(0,0,0,0.5); color: #fff;
     font-size: 11px; padding: 2px 8px; border-radius: 999px;
   }
+  .modal-slide-download {
+    width: 28px; height: 28px; border-radius: 50%; border: none; padding: 0;
+    background: rgba(0,0,0,0.5); color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal-slide-download:hover { background: rgba(0,0,0,0.7); }
+  .modal-slide-download svg { width: 14px; height: 14px; }
   .modal-slide-dots { display: flex; justify-content: center; gap: 6px; padding: 10px 0 0; }
   .modal-slide-dot {
     width: 6px; height: 6px; border-radius: 50%; border: none; padding: 0;
@@ -1155,9 +1165,14 @@
     var first = driveThumbUrl(photos[0], 1200) || photos[0];
     var navHtml = photos.length > 1
       ? '<button type="button" class="modal-slide-nav modal-slide-prev" aria-label="이전 사진">‹</button>' +
-        '<button type="button" class="modal-slide-nav modal-slide-next" aria-label="다음 사진">›</button>' +
-        '<div class="modal-slide-counter">1 / ' + photos.length + '</div>'
+        '<button type="button" class="modal-slide-nav modal-slide-next" aria-label="다음 사진">›</button>'
       : "";
+    var counterHtml = photos.length > 1 ? '<div class="modal-slide-counter">1 / ' + photos.length + '</div>' : "";
+    var bottomBarHtml = '<div class="modal-slide-bottom-bar">' + counterHtml +
+      '<button type="button" class="modal-slide-download" id="modal-slide-download-btn" aria-label="사진 다운로드" title="다운로드">' +
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+      '</button>' +
+    '</div>';
     var dotsHtml = photos.length > 1
       ? '<div class="modal-slide-dots">' + photos.map(function (_, i) {
           return '<button type="button" class="modal-slide-dot' + (i === 0 ? " active" : "") +
@@ -1166,7 +1181,7 @@
       : "";
     return '<div class="modal-slide-viewport">' +
         '<img class="modal-slide-img" src="' + escapeHtml(first) + '" alt="라운딩 사진">' +
-        navHtml +
+        navHtml + bottomBarHtml +
       '</div>' + dotsHtml;
   }
 
@@ -1181,6 +1196,35 @@
     if (counterEl) counterEl.textContent = (modalSlideIndex + 1) + " / " + modalPhotos.length;
     Array.prototype.forEach.call(modalContent.querySelectorAll(".modal-slide-dot"), function (dot, i) {
       dot.classList.toggle("active", i === modalSlideIndex);
+    });
+  }
+
+  function buildPhotoFilename(r, idx, total) {
+    var safeCourse = (r.course || "round").replace(/[^a-zA-Z0-9가-힣_-]/g, "_");
+    var suffix = total > 1 ? "_" + (idx + 1) : "";
+    return safeCourse + "_" + r.date + suffix + ".jpg";
+  }
+
+  // drive.google.com으로 이동시키는 일반 링크 다운로드 대신, 이미지를 fetch로 직접 받아
+  // Blob URL을 만들어 클릭하는 방식이라야 새 탭이 열리지 않고 원하는 파일명으로 저장된다.
+  function downloadCurrentPhoto(r) {
+    if (!modalPhotos.length) return;
+    var srcUrl = driveThumbUrl(modalPhotos[modalSlideIndex], 2000) || modalPhotos[modalSlideIndex];
+    var filename = buildPhotoFilename(r, modalSlideIndex, modalPhotos.length);
+    fetch(srcUrl).then(function (res) {
+      if (!res.ok) throw new Error("download_fetch_failed");
+      return res.blob();
+    }).then(function (blob) {
+      var blobUrl = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 1000);
+    }).catch(function () {
+      window.alert("사진을 다운로드하지 못했어요. 다시 시도해주세요.");
     });
   }
 
@@ -1222,6 +1266,10 @@
       Array.prototype.forEach.call(modalContent.querySelectorAll(".modal-slide-dot"), function (dot) {
         dot.addEventListener("click", function () { setModalSlide(parseInt(dot.getAttribute("data-idx"), 10)); });
       });
+    }
+    var downloadBtn = modalContent.querySelector("#modal-slide-download-btn");
+    if (downloadBtn) {
+      downloadBtn.addEventListener("click", function () { downloadCurrentPhoto(r); });
     }
     modalContent.querySelector("#modal-edit-btn").addEventListener("click", function () {
       closeModal();

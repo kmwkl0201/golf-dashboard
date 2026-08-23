@@ -67,6 +67,8 @@ function doPost(e) {
     switch (body.action) {
       case "signup": return handleSignup_(body);
       case "login": return handleLogin_(body);
+      case "changePin": return handleChangePin_(body);
+      case "withdraw": return handleWithdraw_(body);
       case "add": return handleAdd_(body);
       case "update": return handleUpdate_(body);
       case "delete": return handleDelete_(body);
@@ -85,6 +87,7 @@ function handleSignup_(body) {
   var name = (body.name || "").toString().trim();
   var phone = normalizePhone_(body.phone);
   var pin = (body.pin || "").toString().trim();
+  var recoveryPin = (body.recoveryPin || "").toString().trim();
 
   if (!name) return jsonOut_({ ok: false, error: "name_required" });
   if (!phone) return jsonOut_({ ok: false, error: "phone_required" });
@@ -94,13 +97,35 @@ function handleSignup_(body) {
   lock.waitLock(30000);
   try {
     var usersSheet = getUsersSheet_();
-    if (findUserRowByPhone_(usersSheet, phone) !== -1) {
-      return jsonOut_({ ok: false, error: "phone_already_registered" });
+    var rowIdx = findUserRowByPhone_(usersSheet, phone);
+
+    if (rowIdx !== -1) {
+      var status = usersSheet.getRange(rowIdx, 7).getValue();
+      if (status !== "withdrawn") {
+        return jsonOut_({ ok: false, error: "phone_already_registered" });
+      }
+
+      // 탈퇴한 계정과 같은 번호로 재가입을 시도하는 경우: 예전 PIN으로 본인 확인이
+      // 되는 경우에만 기존 행(=기존 라운딩 기록 시트)을 그대로 재사용해 복구한다.
+      // 전화번호+이름만 아는 제3자는 예전 PinHash를 절대 통과할 수 없다.
+      var existingHash = usersSheet.getRange(rowIdx, 3).getValue();
+      if (!recoveryPin || hashPin_(phone, recoveryPin) !== existingHash) {
+        return jsonOut_({ ok: false, error: "account_withdrawn_recovery_needed" });
+      }
+
+      var recoveredToken = Utilities.getUuid();
+      usersSheet.getRange(rowIdx, 1).setValue(name);                       // Name
+      usersSheet.getRange(rowIdx, 3).setValue(hashPin_(phone, pin));       // PinHash
+      usersSheet.getRange(rowIdx, 5).setValue(recoveredToken);             // SessionToken
+      usersSheet.getRange(rowIdx, 7).setValue("active");                   // Status
+      // Phone(B), SpreadsheetId(D), CreatedAt(F)는 그대로 둔다 — 기존 기록 유지.
+
+      return jsonOut_({ ok: true, token: recoveredToken, name: name });
     }
 
     var userSpreadsheet = createUserSpreadsheet_(name);
     var token = Utilities.getUuid();
-    usersSheet.appendRow([name, phone, hashPin_(phone, pin), userSpreadsheet.getId(), token, new Date()]);
+    usersSheet.appendRow([name, phone, hashPin_(phone, pin), userSpreadsheet.getId(), token, new Date(), "active"]);
 
     return jsonOut_({ ok: true, token: token, name: name });
   } finally {
@@ -117,15 +142,48 @@ function handleLogin_(body) {
   var rowIdx = findUserRowByPhone_(usersSheet, phone);
   if (rowIdx === -1) return jsonOut_({ ok: false, error: "invalid_credentials" });
 
-  var rowVals = usersSheet.getRange(rowIdx, 1, 1, 6).getValues()[0];
+  var rowVals = usersSheet.getRange(rowIdx, 1, 1, 7).getValues()[0];
   var storedHash = rowVals[2];
   if (hashPin_(phone, pin) !== storedHash) {
     return jsonOut_({ ok: false, error: "invalid_credentials" });
+  }
+  if (rowVals[6] === "withdrawn") {
+    return jsonOut_({ ok: false, error: "account_withdrawn" });
   }
 
   var token = Utilities.getUuid();
   usersSheet.getRange(rowIdx, 5).setValue(token);
   return jsonOut_({ ok: true, token: token, name: rowVals[0] });
+}
+
+/* ========================================================================
+ * 계정 관리 (로그인된 본인만 — 세션 토큰으로 신원 확인)
+ * ======================================================================== */
+
+function handleChangePin_(body) {
+  var user = resolveUser_(body.token); // 유효하지 않거나 탈퇴한 계정이면 여기서 에러를 던진다.
+  var phone = normalizePhone_(body.phone || user.phone);
+  var currentPin = (body.currentPin || "").toString().trim();
+  var newPin = (body.newPin || "").toString().trim();
+
+  if (!currentPin || !newPin) return jsonOut_({ ok: false, error: "missing_fields" });
+  if (newPin.length < 4) return jsonOut_({ ok: false, error: "pin_too_short" });
+
+  var usersSheet = getUsersSheet_();
+  var storedHash = usersSheet.getRange(user.row, 3).getValue();
+  if (hashPin_(phone, currentPin) !== storedHash) {
+    return jsonOut_({ ok: false, error: "current_pin_invalid" });
+  }
+
+  usersSheet.getRange(user.row, 3).setValue(hashPin_(phone, newPin)); // PinHash만 갱신
+  return jsonOut_({ ok: true });
+}
+
+function handleWithdraw_(body) {
+  var user = resolveUser_(body.token);
+  var usersSheet = getUsersSheet_();
+  usersSheet.getRange(user.row, 7).setValue("withdrawn"); // Status만 변경. 행/SpreadsheetId는 그대로 둔다.
+  return jsonOut_({ ok: true });
 }
 
 /* ========================================================================
@@ -233,10 +291,11 @@ function resolveUser_(token) {
   var usersSheet = getUsersSheet_();
   var lastRow = usersSheet.getLastRow();
   if (lastRow >= 2) {
-    var values = usersSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+    var values = usersSheet.getRange(2, 1, lastRow - 1, 7).getValues();
     for (var i = 0; i < values.length; i++) {
       if (values[i][4] === token) {
-        return { name: values[i][0], phone: values[i][1], spreadsheetId: values[i][3] };
+        if (values[i][6] === "withdrawn") throw new Error("account_withdrawn");
+        return { row: i + 2, name: values[i][0], phone: values[i][1], spreadsheetId: values[i][3] };
       }
     }
   }
@@ -269,11 +328,34 @@ function getUsersSheet_() {
   var sheet = ss.getSheetByName("Users");
   if (!sheet) {
     sheet = ss.insertSheet("Users");
-    sheet.appendRow(["Name", "Phone", "PinHash", "SpreadsheetId", "SessionToken", "CreatedAt"]);
+    sheet.appendRow(["Name", "Phone", "PinHash", "SpreadsheetId", "SessionToken", "CreatedAt", "Status"]);
   }
   // 기존 시트를 재사용하는 경우에도 매번 적용해야 신규 행에 텍스트 서식이 유지된다.
   sheet.getRange("B:B").setNumberFormat("@"); // 전화번호가 숫자로 변환되지 않도록 텍스트 서식 고정
+  ensureStatusColumn_(sheet); // Status 열이 없던 옛 시트에도 열을 추가하고 기존 회원을 active로 채운다.
   return sheet;
+}
+
+// Status 열(G)이 없는 예전 Users 시트에도 헤더를 추가하고, 기존 회원 행은 전부
+// "active"로 채워 넣는다. 이미 Status 열이 있으면 아무것도 바꾸지 않는다(멱등).
+function ensureStatusColumn_(sheet) {
+  var header = sheet.getRange(1, 7).getValue();
+  if (header !== "Status") {
+    sheet.getRange(1, 7).setValue("Status");
+  }
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var statusRange = sheet.getRange(2, 7, lastRow - 1, 1);
+  var values = statusRange.getValues();
+  var changed = false;
+  for (var i = 0; i < values.length; i++) {
+    if (!values[i][0]) {
+      values[i][0] = "active";
+      changed = true;
+    }
+  }
+  if (changed) statusRange.setValues(values);
 }
 
 function createUserSpreadsheet_(name) {

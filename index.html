@@ -156,12 +156,31 @@
   .auth-form { display: none; flex-direction: column; gap: 12px; }
   .auth-form.active { display: flex; }
 
-  #account-card { padding: 10px 16px; }
+  #account-card { padding: 10px 16px 14px; }
   #account-info {
     display: flex; align-items: baseline; gap: 8px;
     font-size: 13px; color: var(--text-primary);
   }
   #account-info .acc-phone { color: var(--text-secondary); font-size: 12px; }
+
+  .account-actions { margin-top: 10px; }
+  .account-link-btn {
+    background: none; border: none; color: var(--series-1); font-size: 12px; font-weight: 600;
+    cursor: pointer; padding: 0;
+  }
+  .account-link-btn:hover { text-decoration: underline; }
+  .change-pin-form { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+  .change-pin-btn-row { display: flex; align-items: center; gap: 12px; }
+  .change-pin-btn-row .submit-btn { margin-top: 0; }
+  .account-status { font-size: 12px; color: var(--text-muted); min-height: 14px; }
+  .account-status.ok { color: var(--good); }
+  .account-status.err { color: var(--series-2); }
+  .withdraw-link {
+    display: block; margin-top: 14px; background: none; border: none; padding: 0;
+    font-size: 11px; color: var(--text-muted); cursor: pointer;
+  }
+  .withdraw-link:hover { color: var(--series-2); text-decoration: underline; }
+  .field-hint { font-size: 11px; color: var(--text-muted); }
 
   /* stat tiles */
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
@@ -402,6 +421,11 @@
             <label for="signup-pin">개인코드(PIN, 4자리 이상)</label>
             <input type="password" id="signup-pin" inputmode="numeric" placeholder="숫자 4자리 이상" required>
           </div>
+          <div class="field" id="signup-recovery-field" style="display:none;">
+            <label for="signup-recovery-pin">예전 개인코드(PIN)</label>
+            <input type="password" id="signup-recovery-pin" inputmode="numeric" placeholder="이전에 사용하던 PIN">
+            <div class="field-hint">이 번호로 가입했던 계정이 있어요. 예전 개인코드를 입력하면 기존 라운딩 기록을 그대로 복구할 수 있어요.</div>
+          </div>
           <button type="submit" class="submit-btn">회원가입</button>
         </form>
 
@@ -410,6 +434,29 @@
 
       <div class="card" id="account-card" style="display:none;">
         <div id="account-info"></div>
+        <div class="account-actions">
+          <button type="button" id="change-pin-toggle-btn" class="account-link-btn">비밀번호 변경</button>
+        </div>
+        <form id="change-pin-form" class="change-pin-form" style="display:none;">
+          <div class="field">
+            <label for="cp-current">현재 개인코드(PIN)</label>
+            <input type="password" id="cp-current" inputmode="numeric" required>
+          </div>
+          <div class="field">
+            <label for="cp-new">새 개인코드(PIN, 4자리 이상)</label>
+            <input type="password" id="cp-new" inputmode="numeric" required>
+          </div>
+          <div class="field">
+            <label for="cp-confirm">새 개인코드 확인</label>
+            <input type="password" id="cp-confirm" inputmode="numeric" required>
+          </div>
+          <div id="change-pin-status" class="account-status"></div>
+          <div class="change-pin-btn-row">
+            <button type="submit" class="submit-btn">변경하기</button>
+            <button type="button" id="change-pin-cancel-btn" class="account-link-btn">취소</button>
+          </div>
+        </form>
+        <button type="button" id="withdraw-btn" class="withdraw-link">회원 탈퇴</button>
       </div>
 
       <div class="card">
@@ -569,6 +616,18 @@
   var accountInfo = document.getElementById("account-info");
   var authStatus = document.getElementById("auth-status");
   var logoutBtn = document.getElementById("logout-btn");
+  var changePinForm = document.getElementById("change-pin-form");
+  var changePinStatus = document.getElementById("change-pin-status");
+  var signupRecoveryField = document.getElementById("signup-recovery-field");
+  var signupRecoveryPin = document.getElementById("signup-recovery-pin");
+
+  function hideSignupRecoveryField() {
+    signupRecoveryField.style.display = "none";
+    signupRecoveryPin.value = "";
+  }
+  function showSignupRecoveryField() {
+    signupRecoveryField.style.display = "";
+  }
 
   function setAuthStatus(msg, kind) {
     authStatus.textContent = msg;
@@ -593,6 +652,10 @@
       accountCard.style.display = "none";
       introText.style.display = "";
       logoutBtn.style.display = "none";
+      changePinForm.reset();
+      changePinForm.style.display = "none";
+      changePinStatus.textContent = "";
+      changePinStatus.className = "account-status";
     }
   }
 
@@ -604,7 +667,10 @@
     phone_already_registered: "이미 가입된 전화번호예요. 로그인해주세요.",
     invalid_credentials: "전화번호 또는 개인코드가 올바르지 않아요.",
     invalid_token: "로그인이 만료됐어요. 다시 로그인해주세요.",
-    not_logged_in: "로그인이 필요해요."
+    not_logged_in: "로그인이 필요해요.",
+    account_withdrawn: "탈퇴한 계정이에요. 재가입해주세요.",
+    account_withdrawn_recovery_needed: "이미 사용된 번호예요. 계정 복구가 필요하면 운영자에게 문의해주세요.",
+    current_pin_invalid: "현재 개인코드가 올바르지 않아요."
   };
   function authErrMsg(err) {
     if (err.code === "BAD_RESPONSE") return "서버 응답을 읽지 못했어요. 잠시 후 다시 시도해주세요.";
@@ -622,6 +688,7 @@
     tabSignup.classList.toggle("active", !isLogin);
     loginForm.classList.toggle("active", isLogin);
     signupForm.classList.toggle("active", !isLogin);
+    hideSignupRecoveryField();
     setAuthStatus("");
   }
   tabLogin.addEventListener("click", function () { switchAuthTab("login"); });
@@ -654,6 +721,7 @@
     var name = document.getElementById("signup-name").value.trim();
     var phone = document.getElementById("signup-phone").value.trim();
     var pin = document.getElementById("signup-pin").value.trim();
+    var recoveryPin = signupRecoveryPin.value.trim();
     if (!name || !phone || !pin) {
       setAuthStatus("이름, 전화번호, 개인코드를 모두 입력해주세요.", "err");
       return;
@@ -663,15 +731,21 @@
       return;
     }
     setAuthStatus("가입 중... 새 시트를 만들고 있어요.");
-    apiPost({ action: "signup", name: name, phone: phone, pin: pin }).then(function (res) {
+    var payload = { action: "signup", name: name, phone: phone, pin: pin };
+    if (recoveryPin) payload.recoveryPin = recoveryPin;
+    apiPost(payload).then(function (res) {
       if (!res.ok) throw new Error(res.error || "unknown_error");
       session = { token: res.token, name: res.name, phone: phone };
       saveSession(session);
       signupForm.reset();
+      hideSignupRecoveryField();
       setAuthStatus("");
       updateAuthUI();
       fetchRounds();
     }).catch(function (err) {
+      if (err.message === "account_withdrawn_recovery_needed") {
+        showSignupRecoveryField();
+      }
       setAuthStatus("회원가입 실패: " + authErrMsg(err), "err");
     });
   });
@@ -683,6 +757,76 @@
     updateAuthUI();
     switchAuthTab("login");
     render();
+  });
+
+  /* ---------- 비밀번호(PIN) 변경 ---------- */
+  var changePinToggleBtn = document.getElementById("change-pin-toggle-btn");
+  var changePinCancelBtn = document.getElementById("change-pin-cancel-btn");
+
+  function setChangePinStatus(msg, kind) {
+    changePinStatus.textContent = msg;
+    changePinStatus.className = "account-status" + (kind ? " " + kind : "");
+  }
+
+  changePinToggleBtn.addEventListener("click", function () {
+    var willShow = changePinForm.style.display === "none";
+    changePinForm.style.display = willShow ? "flex" : "none";
+    if (!willShow) changePinForm.reset();
+    setChangePinStatus("");
+  });
+  changePinCancelBtn.addEventListener("click", function () {
+    changePinForm.reset();
+    changePinForm.style.display = "none";
+    setChangePinStatus("");
+  });
+
+  changePinForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var current = document.getElementById("cp-current").value.trim();
+    var next = document.getElementById("cp-new").value.trim();
+    var confirmPin = document.getElementById("cp-confirm").value.trim();
+
+    if (!current || !next || !confirmPin) {
+      setChangePinStatus("모든 칸을 입력해주세요.", "err");
+      return;
+    }
+    if (next.length < 4) {
+      setChangePinStatus("새 개인코드는 4자리 이상이어야 해요.", "err");
+      return;
+    }
+    if (next !== confirmPin) {
+      setChangePinStatus("새 개인코드가 서로 달라요.", "err");
+      return;
+    }
+
+    setChangePinStatus("변경 중...");
+    apiPost({ action: "changePin", phone: session.phone, currentPin: current, newPin: next }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || "unknown_error");
+      changePinForm.reset();
+      changePinForm.style.display = "none";
+      setChangePinStatus("");
+      window.alert("비밀번호가 변경됐어요. 다음 로그인부터 새 개인코드를 사용해주세요.");
+    }).catch(function (err) {
+      setChangePinStatus(authErrMsg(err), "err");
+    });
+  });
+
+  /* ---------- 회원 탈퇴 ---------- */
+  var withdrawBtn = document.getElementById("withdraw-btn");
+  withdrawBtn.addEventListener("click", function () {
+    if (!window.confirm("정말 탈퇴하시겠어요? 라운딩 기록은 삭제되지 않고 보관되며, 나중에 같은 전화번호와 지금 쓰던 개인코드로 복구할 수 있어요.")) return;
+    apiPost({ action: "withdraw" }).then(function (res) {
+      if (!res.ok) throw new Error(res.error || "unknown_error");
+      window.alert("탈퇴 처리됐어요. 그동안 이용해주셔서 감사합니다.");
+      session = null;
+      clearSession();
+      rounds = [];
+      updateAuthUI();
+      switchAuthTab("login");
+      render();
+    }).catch(function (err) {
+      window.alert("탈퇴 처리에 실패했어요: " + authErrMsg(err));
+    });
   });
 
   /* ---------- API calls ---------- */

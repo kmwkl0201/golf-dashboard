@@ -1,27 +1,50 @@
 /**
- * 골프 라운딩 대시보드 백엔드 (Apps Script)
+ * 골프 라운딩 추억 앨범 백엔드 (Apps Script)
  *
- * 배포 방법
+ * ==========================================================================
+ * 처음 배포하는 경우 (계정이 하나도 없는 완전히 새 프로젝트)
+ * ==========================================================================
  * 1. https://script.google.com/ 에서 새 프로젝트 생성 후 이 파일 내용을 Code.gs에 붙여넣기
- * 2. 아래 PIN_SALT 값을 원하는 임의의 문자열로 바꾸기 (PIN 해시에 사용되는 값, 외부에 노출되면 안 됨)
+ * 2. 아래 PIN_SALT 값을 원하는 임의의 문자열로 한 번만 바꾸기
+ *    (PIN 해시에 사용되는 값, 외부에 노출되면 안 됨)
  * 3. 배포 > 새 배포 > 유형: 웹 앱
  *    - 실행 계정: 나(본인)
  *    - 액세스 권한: 모든 사용자
  * 4. 배포 후 생성되는 웹 앱 URL을 index.html의 APPS_SCRIPT_URL 상수에 붙여넣기
  *
+ * ==========================================================================
+ * 이미 회원이 있는 상태에서 이 파일로 코드만 업데이트하는 경우 (★ 지금 이 상황)
+ * ==========================================================================
+ * 아래 PIN_SALT는 반드시 "지금 실제로 배포되어 있는 스크립트에 적혀 있는 값 그대로"
+ * 붙여넣어야 합니다. 이 값이 조금이라도 다르면 이미 가입된 모든 회원의 PIN이 전부
+ * 틀린 것으로 판정되어 아무도 로그인할 수 없게 됩니다.
+ * 자세한 절차는 이 파일 하단의 "배포 절차" 안내, 또는 대화창의 안내 메시지를 참고하세요.
+ *
+ * ==========================================================================
  * 동작 방식
+ * ==========================================================================
  * - 이 스크립트는 최초 실행 시 "골프기록_회원DB"라는 스프레드시트를 자동 생성해
  *   회원 정보(Users 시트: 이름/전화번호/PIN 해시/전용 스프레드시트ID/세션토큰)를 관리한다.
  * - 회원가입 시 사용자 전용 스프레드시트("이름님의 골프 기록")를 자동 생성하고,
  *   그 스프레드시트 ID를 Users 시트에 연결해둔다.
- * - 로그인/회원가입에 성공하면 세션 토큰을 발급하고, 이후 모든 기록 조회/추가/삭제는
+ * - 로그인/회원가입에 성공하면 세션 토큰을 발급하고, 이후 모든 기록 조회/추가/수정/삭제는
  *   그 토큰으로 사용자를 식별해 해당 사용자의 전용 스프레드시트에서만 처리한다.
+ * - 라운딩 사진은 여러 장(최대 MAX_PHOTOS장) Drive에 올린 뒤 URL을 콤마로 이어붙여
+ *   Records 시트의 Photos 열 한 칸에 저장한다.
  */
 
-var PIN_SALT = "CHANGE_THIS_SALT_VALUE";
+// ⚠️ 이후 절대 변경 금지 ⚠️
+// 이 값은 회원 PIN 해시 계산에 쓰인다. 배포 이후 이 값을 바꾸면 그 순간부터
+// 기존에 가입된 모든 회원이 올바른 PIN을 입력해도 로그인에 실패하게 된다.
+// (새 프로젝트를 맨 처음 배포할 때 딱 한 번만 원하는 값으로 정하고, 그 다음부터는
+//  코드를 아무리 다시 정리하거나 배포를 새로 해도 이 줄만은 절대 건드리지 말 것.)
+var PIN_SALT = "__여기에_기존_배포본의_PIN_SALT_값을_그대로_붙여넣으세요__";
+
 var MAX_PHOTOS = 6;
 
-/* ---------- 진입점 ---------- */
+/* ========================================================================
+ * 진입점
+ * ======================================================================== */
 
 function doGet(e) {
   try {
@@ -54,7 +77,9 @@ function doPost(e) {
   }
 }
 
-/* ---------- 회원가입 / 로그인 ---------- */
+/* ========================================================================
+ * 회원가입 / 로그인
+ * ======================================================================== */
 
 function handleSignup_(body) {
   var name = (body.name || "").toString().trim();
@@ -103,7 +128,9 @@ function handleLogin_(body) {
   return jsonOut_({ ok: true, token: token, name: rowVals[0] });
 }
 
-/* ---------- 라운딩 기록 CRUD (로그인된 사용자 전용 시트에서 처리) ---------- */
+/* ========================================================================
+ * 라운딩 기록 CRUD (로그인된 사용자 전용 시트에서 처리)
+ * ======================================================================== */
 
 function handleList_(token) {
   var user = resolveUser_(token);
@@ -195,7 +222,9 @@ function handleDelete_(body) {
   return jsonOut_({ ok: true });
 }
 
-/* ---------- 사용자/시트 조회 및 생성 ---------- */
+/* ========================================================================
+ * 사용자/시트 조회 및 생성
+ * ======================================================================== */
 
 function resolveUser_(token) {
   token = (token || "").toString().trim();
@@ -217,9 +246,11 @@ function resolveUser_(token) {
 function findUserRowByPhone_(usersSheet, phone) {
   var lastRow = usersSheet.getLastRow();
   if (lastRow < 2) return -1;
+  var targetKey = phoneKeyForCompare_(phone);
+  if (!targetKey) return -1;
   var phones = usersSheet.getRange(2, 2, lastRow - 1, 1).getValues();
   for (var i = 0; i < phones.length; i++) {
-    if (String(phones[i][0]) === phone) return i + 2;
+    if (phoneKeyForCompare_(phones[i][0]) === targetKey) return i + 2;
   }
   return -1;
 }
@@ -265,10 +296,20 @@ function getRecordsSheet_(spreadsheetId) {
   return sheet;
 }
 
-/* ---------- 유틸 ---------- */
+/* ========================================================================
+ * 유틸
+ * ======================================================================== */
 
 function normalizePhone_(phone) {
   return (phone || "").toString().replace(/[^0-9]/g, "");
+}
+
+// 전화번호를 숫자만 남긴 뒤 맨 앞의 0들까지 제거해 "비교용 키"로 만든다.
+// 구글 시트가 Phone 열을 숫자로 잘못 인식해 맨 앞 0이 사라진 과거 데이터가 있어도
+// (예: "01023793399" -> 1023793399) 같은 번호로 인식해서 로그인/중복가입 체크가
+// 깨지지 않도록 하기 위한 안전장치다.
+function phoneKeyForCompare_(phone) {
+  return normalizePhone_(phone).replace(/^0+/, "");
 }
 
 function hashPin_(phone, pin) {
@@ -289,4 +330,46 @@ function formatDate_(v) {
 
 function jsonOut_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/* ========================================================================
+ * [관리자 전용] 회원 PIN 재설정
+ * ========================================================================
+ * 이 함수는 웹앱(doGet/doPost)에서는 절대 호출되지 않는다. Apps Script 편집기에서
+ * 관리자가 직접 선택해서 실행하는 용도로만 존재한다 — 그래서 외부에서 URL로 접근해도
+ * 아무도 이 함수를 실행시킬 수 없다.
+ *
+ * 사용법
+ * 1. 아래 PHONE(전화번호)과 NEW_PIN(새 PIN, 숫자 4자리 이상)을 원하는 값으로 바꾼다.
+ *    PHONE은 회원이 로그인할 때 입력하는 것과 같은 형식(맨 앞 0 포함)으로 적으면 된다.
+ * 2. Apps Script 편집기 상단에서 함수 목록을 "resetMemberPin"으로 선택하고 실행한다.
+ * 3. 실행 로그(보기 > 실행 기록)에서 성공 메시지를 확인한다.
+ * 4. 새 PIN으로 실제 로그인이 되는지 확인한다.
+ *
+ * 이 함수는 해당 회원의 PinHash 칸만 바꾸고, SpreadsheetId(개인 라운딩 기록 시트 연결)는
+ * 절대 건드리지 않으므로 기존 라운딩 기록은 그대로 유지된다.
+ */
+function resetMemberPin() {
+  var PHONE = "01000000000"; // 재설정할 회원의 전화번호로 바꾸세요.
+  var NEW_PIN = "0000";      // 새로 설정할 PIN(숫자 4자리 이상)으로 바꾸세요.
+
+  var pin = (NEW_PIN || "").toString().trim();
+  if (pin.length < 4) {
+    Logger.log("NEW_PIN은 4자리 이상 숫자여야 합니다. 현재 값: " + NEW_PIN);
+    return;
+  }
+
+  var usersSheet = getUsersSheet_();
+  var rowIdx = findUserRowByPhone_(usersSheet, PHONE);
+  if (rowIdx === -1) {
+    Logger.log("해당 전화번호의 회원을 찾을 수 없습니다: " + PHONE);
+    return;
+  }
+
+  var phoneForHash = normalizePhone_(PHONE);
+  var newHash = hashPin_(phoneForHash, pin);
+  usersSheet.getRange(rowIdx, 3).setValue(newHash); // PinHash(C열)만 갱신. SpreadsheetId(D열)는 그대로 둔다.
+
+  var name = usersSheet.getRange(rowIdx, 1).getValue();
+  Logger.log("완료: " + name + "(" + PHONE + ")의 PIN이 재설정됐습니다. 새 PIN(" + pin + ")으로 로그인해보세요.");
 }

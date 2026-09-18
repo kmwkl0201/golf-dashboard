@@ -993,6 +993,7 @@
   var MAX_PHOTOS = 6;
   var pendingPhotos = []; // [{ dataUrl, mimeType }] 새로 추가된, 아직 업로드 안 된 사진
   var existingPhotos = []; // [url] 수정 중인 기록에 이미 첨부된, 유지할 사진
+  var photoProcessing = false; // 리사이즈 처리 중(비동기)에 제출하면 방금 고른 사진이 빠진 채로 전송되는 것을 막기 위한 플래그
   var photoInput = document.getElementById("f-photo");
   var photoPreviewWrap = document.getElementById("photo-preview-wrap");
   var photoStatus = document.getElementById("photo-status");
@@ -1084,6 +1085,8 @@
       ? "최대 " + MAX_PHOTOS + "장까지만 추가돼요. 일부 사진은 제외됐어요."
       : "사진 처리 중...";
 
+    photoProcessing = true;
+    submitBtn.disabled = true;
     Promise.all(toProcess.map(function (f) { return resizeImage(f, PHOTO_MAX_DIM, 0.75); })).then(function (results) {
       pendingPhotos = pendingPhotos.concat(results);
       renderPhotoPreviews();
@@ -1094,6 +1097,8 @@
       photoStatus.textContent = "사진을 처리하지 못했어요. 다른 파일을 시도해주세요.";
     }).finally(function () {
       photoInput.value = "";
+      photoProcessing = false;
+      submitBtn.disabled = false;
     });
   });
 
@@ -1168,6 +1173,10 @@
 
     if (!sessionReady()) {
       errorBox.textContent = "먼저 로그인해주세요.";
+      return;
+    }
+    if (photoProcessing) {
+      errorBox.textContent = "사진을 처리하는 중이에요. 잠시 후 다시 눌러주세요.";
       return;
     }
 

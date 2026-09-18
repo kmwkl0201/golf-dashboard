@@ -294,6 +294,30 @@
   .photo-preview-remove:hover { color: var(--series-2); border-color: var(--series-2); }
   .photo-status { font-size: 12px; color: var(--text-muted); margin-top: 4px; min-height: 14px; }
 
+  /* success toast */
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(12px);
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface-1); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    padding: 12px 14px 12px 16px; max-width: calc(100vw - 40px);
+    font-size: 13px; z-index: 300;
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .toast.active {
+    opacity: 1; visibility: visible; pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+  }
+  .toast-icon { color: var(--good); font-size: 16px; line-height: 1; flex-shrink: 0; }
+  .toast-msg { flex: 1; }
+  .toast-close {
+    background: none; border: none; color: var(--text-muted); font-size: 16px;
+    line-height: 1; cursor: pointer; padding: 2px; flex-shrink: 0;
+  }
+  .toast-close:hover { color: var(--text-primary); }
+
   /* round detail modal */
   .modal-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
@@ -597,6 +621,12 @@
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
   </button>
   <div class="fullscreen-counter" id="fullscreen-counter"></div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <span class="toast-icon" aria-hidden="true">&#10003;</span>
+  <span class="toast-msg" id="toast-msg"></span>
+  <button type="button" class="toast-close" id="toast-close-btn" aria-label="닫기">&times;</button>
 </div>
 
 <script>
@@ -1117,6 +1147,27 @@
     return m ? ("https://lh3.googleusercontent.com/d/" + m[1] + "=s" + (size || 1600)) : null;
   }
 
+  /* ---------- toast ---------- */
+  var toastEl = document.getElementById("toast");
+  var toastMsgEl = document.getElementById("toast-msg");
+  var toastCloseBtn = document.getElementById("toast-close-btn");
+  var toastTimer = null;
+
+  function hideToast() {
+    toastEl.classList.remove("active");
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+      toastTimer = null;
+    }
+  }
+  function showToast(message) {
+    toastMsgEl.textContent = message;
+    toastEl.classList.add("active");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, 3000);
+  }
+  toastCloseBtn.addEventListener("click", hideToast);
+
   /* ---------- form (신규 추가 / 수정 공용) ---------- */
   var form = document.getElementById("round-form");
   var errorBox = document.getElementById("form-error");
@@ -1229,6 +1280,7 @@
       resetCompanionRows();
       resetPhotoInputs();
       updateFormModeUI();
+      showToast(isEditing ? "수정이 완료되었습니다." : "기록이 저장되었습니다.");
       return fetchRounds();
     }).catch(function (err) {
       if (err.code === "BAD_RESPONSE") {
